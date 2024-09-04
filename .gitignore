@@ -1,0 +1,29 @@
+# Ignore build and binary directories
+/build/
+/bin/
+
+# Ignore IDE files
+.vscode/
+.idea/
+
+# Ignore specific build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Ignore CMake cache and generated files
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+
+# Ignore other generated files
+*.cmake
+*.cmake.in
+*.cmake.buildinfo
+*.cmake.depends
+*.cmake.check_cache
+
+# Ignore other files
+.DS_Store
