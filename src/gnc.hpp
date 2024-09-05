@@ -2,7 +2,7 @@
 #define GNC_HPP
 
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#include "Eigen/Dense"
+#include <Eigen/Dense>
 
 #include <memory>
 

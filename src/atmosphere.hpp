@@ -4,6 +4,7 @@
 #include <array>
 #include <vector>
 #include <cmath>
+#include <string>
 
 struct Air
 {
@@ -342,7 +343,7 @@ public:
         double max_height, double height_increment);
 
     void load(STD_ATMOSPHERES atm, double height_increment, 
-        double ground_temperature = 288.15, double ground_pressure = 101325, double g0 = 9.806);
+        double ground_temperature = 288.15, double ground_pressure = 101325.0, double g0 = 9.806);
 
     void load(const std::string& file);
 

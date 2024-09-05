@@ -1,5 +1,6 @@
 #include "earth.hpp"
 
+#include <array>
 #include <cmath>
 
 Eigen::Vector3d Earth::get_fictional_forces(const Eigen::Vector3d& ecef_position, 

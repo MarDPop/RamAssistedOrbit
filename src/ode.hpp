@@ -162,7 +162,7 @@ class ODE_RK4 final : public virtual ODE<T>
     double _dt_half;
     double _dt_sixth;
 
-    void _setup() override
+    void _setup(const RunOptions<T::N_STATES>& ) override
     {
         _dt_half = this->_dt*0.5;
         _dt_sixth = this->_dt*0.166666666666666666;

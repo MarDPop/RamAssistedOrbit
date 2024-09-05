@@ -4,6 +4,8 @@
 
 #include <Eigen/Dense>
 
+#include <array>
+
 class Earth
 {
 

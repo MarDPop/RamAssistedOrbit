@@ -8,11 +8,14 @@ set compiler=g++ -std=c++17
 set debugFlags=-g3 -Wall -Wextra -DDEBUG
 set optFlags=-O2 -march=native -DRELEASE
 set flags=
+set dir=
 
 if "%arg1%" == "release" (
     set flags=%optFlags%
+    set dir=Release
 ) else (
     set flags=%debugFlags%
+    set dir=Debug
 )
 
 for %%f in (src/*.cpp) do (
@@ -28,7 +31,7 @@ for %%f in (obj/*.o) do (
     set c=!c! obj/%%f
 )
 
-set stmt=%compiler% %flags% -I ./lib !c! -o bin/sim.exe
+set stmt=%compiler% %flags% -I ./lib !c! -o bin/%dir%/sim.exe
 echo !stmt!
 !stmt!
 
