@@ -66,14 +66,11 @@ void AerodynamicBasicCoefficients::update_forces(const AeroQuantities& aero)
     _body_moment(1) = pitch_moment;
 }
 
+void update_coef(const AeroQuantities& aero);
+
 AerodynamicBasicCoefficients::AerodynamicBasicCoefficients(const Coef& coef) : Aerodynamics(),
     coef_scaled({coef.CD0*coef.A_ref, coef.K/coef.A_ref, coef.alpha0, coef.CL_alpha*coef.A_ref,
     coef.CM_alpha*coef.A_ref*coef.L_ref, coef.dCD_dEl*coef.A_ref, coef.dCM_dEl*coef.A_ref*coef.L_ref,
     coef.stall_angle, coef.max_elevator_deflection, coef.A_ref, coef.L_ref}) {}
 
-const std::array<double, AerodynamicAeroTablePlane::N_MACH> AerodynamicAeroTablePlane::MACH = {0.3, 0.7, 0.9, 1.0, 1.1, 1.3, 1.5, 2.0, 3.0, 5.0};
-
-const std::array<double, AerodynamicAeroTablePlane::N_ALPHA> AerodynamicAeroTablePlane::ALPHA = {-0.4, -0.2, -0.1, -0.05, 0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6};
-
-const std::array<double, AerodynamicAeroTablePlane::N_BETA> AerodynamicAeroTablePlane::BETA = {0.1, 0.2, 0.4, 0.7};
 
