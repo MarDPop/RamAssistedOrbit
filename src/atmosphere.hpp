@@ -239,6 +239,26 @@ struct Air
     double gamma;
     double specific_gas_constant;
 
+    Air(){}
+
+    Air(double* data) : pressure(data[0]), density(data[1]), inv_sound_speed(data[2]), temperature(data[3]), 
+        dynamic_viscosity(data[4]), gamma(data[5]), specific_gas_constant(data[6]) {}
+
+    Air(double pressure_, double density_, double inv_sound_speed_, double temperature_, double dynamic_viscosity_,
+        double gamma_, double specific_gas_constant_) : pressure(pressure_), density(density_), inv_sound_speed(inv_sound_speed_), 
+        temperature(temperature_), dynamic_viscosity(dynamic_viscosity_), gamma(gamma_), 
+        specific_gas_constant(specific_gas_constant_) {}
+
+    Air(double pressure_, double temperature_) : pressure(pressure_), specific_gas_constant(Air::GAS_CONSTANT/Air::DRY_AIR_MW),
+        density(pressure/(specific_gas_constant*temperature)), 
+        inv_sound_speed(1.0/sqrt(gamma*specific_gas_constant*temperature)),
+        temperature(temperature_), dynamic_viscosity(dynamic_viscosity_sutherland(temperature)), gamma(1.4) {}
+
+    Air(double pressure_, double temperature_, double gamma_ = 1.4, double mw = 0.028137, 
+        double dynamic_viscosity_ = 1.61e-5) : pressure(pressure_), specific_gas_constant(Air::GAS_CONSTANT/mw), 
+        density(pressure_/(specific_gas_constant*temperature_)), inv_sound_speed(1.0/sqrt(gamma*specific_gas_constant*temperature)),
+        temperature(temperature_), gamma(gamma_) {}
+
     /* OBJECT METHODS */
     double* data()
     {
@@ -252,41 +272,11 @@ struct Air
 
 };
 
-class Atmosphere
+struct Atmosphere 
 {
-    std::vector<Air> _table;
-
-    std::vector<Air> _linear_factors;
-
-    double _max_height;
-
-    double _height_increment;
-
-    double _inv_height_increment;
-
-    void load_US_1976(double sl_tmp = 288.15, double p0 = 101325, double g0 = 9.80665);
-
-    void compute_linear_factors();
-
-public:
-
-    static const double US_1976_HEIGHTS[10];
-    static const double US_1976_LAPSE_RATE[10];
-    static const double NRLMSISE_HEIGHTS[10];
-    static const double NRLMSISE_LAPSE_RATE[10];
-
     static const Air VACUUM;
 
     static const Air SEA_LEVEL;
-
-    enum class STD_ATMOSPHERES
-    {
-        US_1976,
-        ICAO,
-        NRLMSISE
-    };
-
-    Atmosphere() {}
 
     /**
      * Calculates the isothermal pressure ratio from base geopotential height
@@ -337,17 +327,73 @@ public:
         return pow(1.0 - lapseRate*(h - href)/tref,g0/(lapseRate*R));
     }
 
-    void set_constant(const Air& air);
+    virtual void set_air(double height, Air& air) const = 0;
 
-    void load(double scale_height, double reference_pressure, double reference_temperature,
-        double max_height, double height_increment);
+    virtual double get_max_height() const = 0;
+};
 
-    void load(STD_ATMOSPHERES atm, double height_increment, 
+class AtmosphereLinearTable : public Atmosphere
+{
+    const std::vector<Air> _table;
+
+    const std::vector<Air> _linear_factors;
+
+    double _min_height;
+
+    double _max_height;
+
+    double _height_increment;
+
+    double _inv_height_increment;
+
+    static std::vector<Air> compute_linear_factors(const std::vector<Air>& table,
+        double height_increment);
+
+public:
+
+    static const double US_1976_HEIGHTS[10];
+    static const double US_1976_LAPSE_RATE[10];
+    static const double NRLMSISE_HEIGHTS[10];
+    static const double NRLMSISE_LAPSE_RATE[10];
+
+    enum class STD_ATMOSPHERES
+    {
+        US_1976,
+        ICAO,
+        NRLMSISE
+    };
+
+    AtmosphereLinearTable(std::vector<Air> table, double min_height, double height_increment);
+
+    /**
+     * @brief Create atmopshere table from arbitrary scale height, reference pressure, reference temperature
+     * 
+     * @param scale_height 
+     * @param reference_pressure 
+     * @param reference_temperature 
+     * @param max_height 
+     * @param height_increment 
+     * @return AtmosphereLinearTable 
+     */
+    static AtmosphereLinearTable create(double scale_height, double reference_pressure, double reference_temperature,
+        double max_height, double height_increment, double min_height = 0.0);
+
+    /**
+     * @brief Creates an table from general US 1976 Standard Atmosphere
+     * 
+     * @param sl_tmp 
+     * @param p0 
+     * @param g0 
+     * @return AtmosphereLinearTable 
+     */
+    static AtmosphereLinearTable create(double sl_tmp = 288.15, double p0 = 101325, double g0 = 9.80665);
+
+    static AtmosphereLinearTable create(STD_ATMOSPHERES atm, double height_increment, 
         double ground_temperature = 288.15, double ground_pressure = 101325.0, double g0 = 9.806);
 
-    void load(const std::string& file);
+    static AtmosphereLinearTable create(const std::string& file);
 
-    double get_max_height() const
+    double get_max_height() const override
     {
         return _max_height;
     }
@@ -357,7 +403,7 @@ public:
         return _height_increment;
     }
 
-    void set_air(double height, Air& air) const;
+    void set_air(double height, Air& air) const override;
 };
 
 #endif

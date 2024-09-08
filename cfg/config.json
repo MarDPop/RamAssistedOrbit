@@ -1,6 +1,11 @@
 {
     "OUTPUT_DIRECTORY" : "output/",
-    "START_MASS" : 1000,
+    "INERTIAL_PROPERTIES" : {
+        "MASS_0" : 1000,
+        "IXX_0" : 50,
+        "IYY_0" : 8500,
+        "IZZ_0" : 9500
+    },
     "TRACK" : {
         "LAUNCH_LONGITUDE" : 0,
         "LAUNCH_LATITUDE" : 0,

@@ -96,7 +96,7 @@ SimulationResult run(json& config)
     std::cout << track_end_state.to_json_string() << "\n";
     std::cout << "**** Setup Vehicle Simulation ****" << std::endl;
 
-    const double startMass = config["START_MASS"].template get<double>();
+    const double startMass = config["INERTIAL_PROPERTIES"]["MASS_0"].template get<double>();
 
     result.ecef_states = track_dynamics::convert_track_states(track, startMass, 
         config["TRACK"]["LAUNCH_LONGITUDE"].template get<double>()*DEG2RAD, 
@@ -114,18 +114,17 @@ SimulationResult run(json& config)
     }
 
     // Ramjet Stage
-    Atmosphere atm;
-    atm.load(Atmosphere::STD_ATMOSPHERES::US_1976, 100);
+    AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
 
-    constexpr double approxDensity = 1200;
-    double approxVolume = startMass / approxDensity;
-    double approxRadius = cbrt(approxVolume/30);    
-    double Ixx = startMass*0.5*approxRadius*approxRadius;
-    double Iyy = startMass*(3*approxRadius*approxRadius + approxRadius*approxRadius*100);
-    double Izz = Iyy;
     constexpr double min_empty = 0.01;
-    InertialProperties I(startMass*min_empty, {Ixx*min_empty,Iyy*min_empty,Izz*min_empty}, Eigen::Vector3d(0,0,0),
-        startMass, {Ixx,Iyy,Izz}, Eigen::Vector3d(0,0,0));
+    InertialProperties I(startMass*min_empty, 
+        {config["INERTIAL_PROPERTIES"]["IXX_0"].template get<double>()*min_empty,
+        config["INERTIAL_PROPERTIES"]["IYY_0"].template get<double>()*min_empty,
+        config["INERTIAL_PROPERTIES"]["IZZ_0"].template get<double>()*min_empty}, Eigen::Vector3d(0,0,0),
+        startMass, 
+        {config["INERTIAL_PROPERTIES"]["IXX_0"].template get<double>(),
+        config["INERTIAL_PROPERTIES"]["IYY_0"].template get<double>(),
+        config["INERTIAL_PROPERTIES"]["IYY_0"].template get<double>()}, Eigen::Vector3d(0,0,0));
 
     AerodynamicBasicCoefficients::Coef coef;
     coef.CD0 = config["RAMJET"]["AERODYNAMICS"]["CD0"].template get<double>();
@@ -147,7 +146,7 @@ SimulationResult run(json& config)
         config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["MACH"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["MACH"].template get<double>(), cruise_lift2drag, 
-        config["START_MASS"].template get<double>(), 
+        startMass, 
         config["RAMJET"]["THRUST_MARGIN"].template get<double>());
 
     ramjet.stop();
@@ -187,7 +186,7 @@ SimulationResult run(json& config)
     RunOptions<14> options;
 
     options.initial_state = track_end_state.x;
-    options.initial_state[13] = config["START_MASS"].template get<double>();
+    options.initial_state[13] = startMass;
     options.initial_time = 0;
     options.final_time = config["ODE"]["MAX_RUNTIME"].template get<double>();
     options.recording_interval = config["ODE"]["RECORDING_INTERVAL"].template get<double>();
@@ -199,13 +198,33 @@ SimulationResult run(json& config)
     };
 
     std::cout << "**** Running Vehicle Simulation ****" << std::endl;
-    try {
+    try 
+    {
         ode->run(options);
-    } catch (std::exception& e) {
+    } 
+    catch (std::exception& e) 
+    {
         std::cerr << e.what() << std::endl;
-    } catch(...) {
-        std::cerr << "unknown error occured" << std::endl;
-        std::cerr << "num entries: " << ode->recording().times.size() << std::endl;
+    } 
+    catch(...) 
+    {
+        std::cout << "unknown error occured" << std::endl;
+        std::cout << "num entries: " << ode->recording().times.size() << std::endl;
+    }
+    std::cout << "**** Simulation Finished ****" << std::endl;
+
+    if(ode->dynamics_stopped())
+    {
+        std::cout << "ODE simulation stopped prematurely" << std::endl;
+        std::cout << "Dynamics invalid" << std::endl;
+    } 
+    else if(ode->options_stopped())
+    {
+        std::cout << "ODE simulation stopped correctly" << std::endl;
+    } 
+    else 
+    {
+        std::cout << "ODE simulation ran out of time" << std::endl;
     }
 
     const unsigned nData = rVehicle.num_data();

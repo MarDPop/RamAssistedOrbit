@@ -72,19 +72,24 @@ protected:
 
     std::array<double, T::N_STATES> _x;
 
+    std::array<double, T::N_STATES> _dx;
+
     double _t;
 
     double _dt;
 
     Recording<T::N_STATES> _recording;
 
+    bool _run_options_terminated;
+
+    bool _dynamics_terminated;
+
     void euler_step(const double dt)
     {
-        std::array<double, T::N_STATES> dx;
-        _f(_x, _t, dx);
+        _f(_x, _t, _dx);
         for(auto i = 0u; i < T::N_STATES; i++)
         {
-            _x[i] += dx[i]*dt;
+            _x[i] += _dx[i]*dt;
         }
         _t += _dt;
     }
@@ -111,6 +116,11 @@ public:
         _t = options.initial_time;
         _dt = options.timestep.min_stepsize;
 
+        _run_options_terminated = false;
+        _dynamics_terminated = false;
+
+        _f(options.initial_state, options.initial_time, _dx);
+
         _setup(options);
 
         unsigned step = 0;
@@ -129,6 +139,9 @@ public:
             _step(options.timestep);
         }
 
+        _run_options_terminated = options.stop(_x);
+        _dynamics_terminated = !_f;
+
         // back track if needed
         if(_t > options.final_time)
         {
@@ -142,6 +155,16 @@ public:
         _recording.states.push_back(_x);
     }
 
+    bool dynamics_stopped() const 
+    {
+        return _dynamics_terminated;
+    }
+
+    bool options_stopped() const 
+    {
+        return _run_options_terminated;
+    }
+
     [[nodiscard]] const Recording<T::N_STATES>& recording() const
     {
         return _recording;
@@ -152,7 +175,6 @@ public:
 template<typename T>
 class ODE_RK4 final : public virtual ODE<T>
 {
-    std::array<double, T::N_STATES> _k1;
     std::array<double, T::N_STATES> _k2;
     std::array<double, T::N_STATES> _k3;
     std::array<double, T::N_STATES> _k4;
@@ -172,13 +194,13 @@ class ODE_RK4 final : public virtual ODE<T>
     {
         _x0 = this->_x;
 
-        this->_f(this->_x, this->_t, _k1);
+        this->_f(this->_x, this->_t, _dx);
 
         this->_t += _dt_half;
 
         for(auto i = 0u; i < T::N_STATES; i++)
         {
-            this->_x[i] = _x0[i] + _k1[i]*_dt_half;
+            this->_x[i] = _x0[i] + _dx[i]*_dt_half;
         }
         this->_f(this->_x, this->_t, _k2);
 
@@ -203,7 +225,7 @@ class ODE_RK4 final : public virtual ODE<T>
 
         for(auto i = 0u; i < T::N_STATES; i++)
         {
-            _k3[i] = _k1[i] + _k2[i] + _k2[i] + _k4[i];
+            _k3[i] = _dx[i] + _k2[i] + _k2[i] + _k4[i];
         }
 
         for(auto i = 0u; i < T::N_STATES; i++)
@@ -223,7 +245,6 @@ class ODE_HUEN_EULER final : public virtual ODE<T>
 {
     static constexpr unsigned NUM_ITER = 2u;
 
-    std::array<double, T::N_STATES> _k0;
     std::array<double, T::N_STATES> _k1;
     std::array<double, T::N_STATES> _x0;
     std::array<double, T::N_STATES> _x1;
@@ -233,12 +254,12 @@ class ODE_HUEN_EULER final : public virtual ODE<T>
     {
         _x0 = this->_x;
         _t0 = this->_t;
-        this->_f(this->_x, this->_t, _k0);
+        this->_f(this->_x, this->_t, _dx);
         for(auto iter = 0u; iter < NUM_ITER; iter++)
         {
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _x1[i] = _x0[i] + _k0[i]*this->_dt;
+                _x1[i] = _x0[i] + _dx[i]*this->_dt;
             }
 
             this->_f(_x1, _t0 + this->_dt, _k1);
@@ -246,7 +267,7 @@ class ODE_HUEN_EULER final : public virtual ODE<T>
             const double dt_half = this->_dt*0.5;
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                this->_x[i] = _x0[i] + (_k0[i] + _k1[i])*dt_half;
+                this->_x[i] = _x0[i] + (_dx[i] + _k1[i])*dt_half;
             }
 
             // compute diff
@@ -287,16 +308,97 @@ class ODE_RK45 final : public virtual ODE<T>
     std::array<double, T::N_STATES> _k4;
     std::array<double, T::N_STATES> _k5;
 
+    std::array<double, 4> h;
+
     std::array<double, T::N_STATES> _x0;
     double _t0;
+
+    // RKF45 coefficients
+    static constexpr double A[] = {1.0/4.0, 3.0/8.0, 12.0/13.0, 1.0, 1.0/2.0};
+    static constexpr double B[] = {1.0/4.0, 3.0/32.0, 9.0/32.0, 1932.0/2197.0, -7200.0/2197.0, 
+        7296.0/2197.0, 439.0/216.0, -8.0, 3680.0/513.0, -845.0/4104.0, -8.0/27.0, 2.0, 
+        -3544.0/2565.0, 1859.0/4104.0, -11.0/40.0};
+    static constexpr double C[] = {16.0/135.0, 6656.0/12825.0, 28561.0/56430.0, -9.0/50.0, 2.0/55.0};
+    static constexpr double D[] = {-1.0/360.0, 128.0/4275.0, 2197.0/75240.0, -1.0/50.0, -2.0/55.0};
 
     void _step(const TimestepOptions<T::N_STATES>& options) override
     {
         _x0 = this->_x;
         _t0 = this->_t;
+        this->_f(this->_x, this->_t, _dx);
+        // note that multiplying by dt for the dt terms more efficient only with low number of states
+        // also vectorization improves efficiency of multiplying constants by dt instead of for each state
         for(auto iter = 0u; iter < MAX_ITER; iter++)
         {
+            for(auto i = 0u; i < T::N_STATES; i++)
+            {
+                _k1[i] = _dx[i]*_dt;
+                _x[i] = _x0[i] + _k1[i]*B[0];
+            }
+            this->_f(_x, _t0 + A[0]*_dt, _k2);
 
+            h[1] = _dt*B[2];
+            for(auto i = 0u; i < T::N_STATES; i++)
+            {
+                _x[i] = _x0[i] + _k1[i]*B[1] + _k2[i]*h[1];
+            }
+            this->_f(_x, _t0 + A[1]*_dt, _k3);
+
+            h[0] = _dt*B[4];
+            h[1] = _dt*B[5];
+            for(auto i = 0u; i < T::N_STATES; i++)
+            {
+                _x[i] = _x0[i] + _k1[i]*B[3] + _k2[i]*h[0] + _k3[i]*h[1];
+            }
+            this->_f(_x, _t0 + A[2]*_dt, _k4);
+
+            h[0] = _dt*B[7];
+            h[1] = _dt*B[8];
+            h[2] = _dt*B[9];
+            for(auto i = 0u; i < T::N_STATES; i++)
+            {
+                _x[i] = _x0[i] + _k1[i]*B[6] + _k2[i]*h[0] + _k3[i]*h[1] + _k4[i]*h[2];
+            }
+            this->_f(_x, _t0 + A[3]*_dt, _k5);
+ 
+            h[0] = _dt*B[11];
+            h[1] = _dt*B[12];
+            h[2] = _dt*B[13];
+            h[3] = _dt*B[14];
+            for(auto i = 0u; i < T::N_STATES; i++)
+            {
+                _x[i] = _x0[i] + _k1[i]*B[10] + _k2[i]*h[0] + _k3[i]*h[1] + _k4[i]*h[2]  + _k5[i]*h[3];
+            }
+            this->_f(_x, _t0 + A[4]*_dt, _k6);
+
+            h[0] = _dt*C[1];
+            h[1] = _dt*C[2];
+            h[2] = _dt*C[3];
+            h[3] = _dt*C[4];
+            for(auto i = 0u; i < T::N_STATES; i++)
+            {
+                _x[i] = _x0[i] + C[0]*_k1[i] + _k3[i]*h[0] + _k4[i]*h[1]  + _k5[i]*h[2] + _k6[i]*h[3];
+            }
+
+            h[0] = _dt*D[1];
+            h[1] = _dt*D[2];
+            h[2] = _dt*D[3];
+            h[3] = _dt*D[4];
+            double max_err = 0.0;
+            for(auto i = 0u; i < T::N_STATES; i++)
+            {
+                double te = D[0]*_k1[i] + _k3[i]*h[0] + _k4[i]*h[1]  + _k5[i]*h[2] + _k6[i]*h[3];
+                double rel_err = fabs(te*options.inv_absolute_error[i]);
+                max_err = std::max(max_err, rel_err);
+            }
+
+            const double factor = sqrt(sqrt(max_err));// std::pow(max_err, -0.2);
+            _dt = std::clamp(_dt*0.9/factor, options.min_stepsize, options.max_stepsize);
+            constexpr double error_threshold = 0.95;
+            if(factor < error_threshold) 
+            {
+                break;
+            }
         }
     }
 };

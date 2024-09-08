@@ -70,8 +70,7 @@ void RamjetFixedInlet::update_thrust(const Air& air, const AeroQuantities& aero)
 RamjetFixedInlet RamjetFixedInlet::create(const double mach, const double altitude, const double thrust, 
         const double thrust2weight, const double nozzle_ram_ratio)
 {
-    Atmosphere atm;
-    atm.load(Atmosphere::STD_ATMOSPHERES::US_1976, 100);
+    AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
     Air air;
     atm.set_air(altitude, air);
     AeroQuantities aero;
@@ -145,8 +144,7 @@ RamjetVariableInlet RamjetVariableInlet::create(double thrust2weight, double alt
     const double drag = weight/lift2drag;
     const double desired_thrust = drag*(1.0 + thrust_margin);
 
-    Atmosphere atm;
-    atm.load(Atmosphere::STD_ATMOSPHERES::US_1976, 100);
+    AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
     Air air;
     atm.set_air(altitude, air);
     AeroQuantities aero;

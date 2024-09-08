@@ -1,6 +1,7 @@
 #include "atmosphere.hpp"
 
 #include "earth.hpp"
+#include "input.hpp"
 
 #include <fstream>
 
@@ -215,7 +216,12 @@ float Air::enthalpy_air(double temperature)
     return ENTHALPY_TABLE[idx] + (f - static_cast<float>(idx))*(ENTHALPY_TABLE[idx+1] - ENTHALPY_TABLE[idx]);
 }
 
-const double Atmosphere::US_1976_HEIGHTS[10] = 
+
+const Air Atmosphere::VACUUM = {0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0};
+
+const Air Atmosphere::SEA_LEVEL = {101325.0, 1.225, 1.0/340.294, 288.15, 1.608e-5, 1.4, 287.0528};
+
+const double AtmosphereLinearTable::US_1976_HEIGHTS[10] = 
 {
     0,
     11000,
@@ -229,7 +235,7 @@ const double Atmosphere::US_1976_HEIGHTS[10] =
     105000
 };
 
-const double Atmosphere::US_1976_LAPSE_RATE[10] = 
+const double AtmosphereLinearTable::US_1976_LAPSE_RATE[10] = 
 {
     -0.0065,
     0,
@@ -243,43 +249,47 @@ const double Atmosphere::US_1976_LAPSE_RATE[10] =
     0.005
 };
 
-const double Atmosphere::NRLMSISE_HEIGHTS[10] = 
+const double AtmosphereLinearTable::NRLMSISE_HEIGHTS[10] = 
 {
     0
 };
 
-const double Atmosphere::NRLMSISE_LAPSE_RATE[10] = 
+const double AtmosphereLinearTable::NRLMSISE_LAPSE_RATE[10] = 
 {
     0
 };
 
-const Air Atmosphere::VACUUM = {0, 0, 1.0, 1.0, 0.0, 1.0, 1.0};
 
-const Air Atmosphere::SEA_LEVEL = {101325, 1.225, 1.0/340.294, 288.15, 1.608e-5, 1.4, 287.0528};
-
-void Atmosphere::compute_linear_factors()
+std::vector<Air> AtmosphereLinearTable::compute_linear_factors(const std::vector<Air>& table, 
+    double height_increment)
 {
-    _linear_factors.resize(_table.size());
+    std::vector<Air> linear_factors;
+    linear_factors.resize(table.size());
+    double inv_height_increment = 1.0/height_increment;
 
-    for(auto i = 1u; i < _table.size(); i++)
+    for(auto i = 1u; i < table.size(); i++)
     {
-        auto* dv = _linear_factors[i-1].data();
-        const auto* v0 = _table[i-1].data();
-        const auto* v1 = _table[i].data();
+        auto* dv = linear_factors[i-1].data();
+        const auto* v0 = table[i-1].data();
+        const auto* v1 = table[i].data();
         for(auto j = 0u; j < Air::NVALUES; j++)
         {
-            dv[j] = (v1[j] - v0[j])*_inv_height_increment;
+            dv[j] = (v1[j] - v0[j])*inv_height_increment;
         }
     }
+    return linear_factors;
 }
 
-void Atmosphere::load(double scale_height, double reference_pressure, double reference_temperature,
-    double max_height, double height_increment)
+AtmosphereLinearTable::AtmosphereLinearTable(std::vector<Air> table, double min_height, 
+    double height_increment) : _table(table), _linear_factors(compute_linear_factors(table, height_increment)), 
+    _min_height(min_height), _max_height(min_height + height_increment*table.size()), _height_increment(height_increment), 
+    _inv_height_increment(1.0/_height_increment) {}
+
+AtmosphereLinearTable AtmosphereLinearTable::create(double scale_height, double reference_pressure, double reference_temperature,
+    double max_height, double height_increment, double min_height)
 {
     constexpr double MW_DRY = 0.0289652;
-    _max_height = max_height;
-    _height_increment = height_increment;
-    _inv_height_increment = 1.0/height_increment;
+    const double inv_height_increment = 1.0/height_increment;
 
     Air air;
     air.temperature = reference_temperature;
@@ -290,28 +300,31 @@ void Atmosphere::load(double scale_height, double reference_pressure, double ref
 
     double R = 6371000 + scale_height;
     double g0 = Earth::MU/(R*R);
-    double scale_factor = -g0/(air.specific_gas_constant*reference_temperature);
+    const double scale_factor = -g0/(air.specific_gas_constant*reference_temperature);
 
-    double h = 0;
-    while(h < _max_height)
+    std::vector<Air> table;
+    table.reserve(static_cast<size_t>((max_height - min_height)/height_increment) + 1);
+    double h = min_height;
+    while(h < max_height)
     {
         Air input = air;
         input.pressure = reference_pressure*exp((scale_height - h)*scale_factor);
         input.density = input.pressure/(air.specific_gas_constant*reference_temperature);
-        _table.push_back(input);
+        table.push_back(input);
         h += height_increment;
     }
 
-    compute_linear_factors();
+    return AtmosphereLinearTable(table, min_height, height_increment);
 }
 
-void Atmosphere::load(STD_ATMOSPHERES, double height_increment, double ground_temperature, double ground_pressure, double g0)
+AtmosphereLinearTable AtmosphereLinearTable::create(STD_ATMOSPHERES, double height_increment, double ground_temperature, double ground_pressure, double g0)
 {
     // TODO: use STD_ATMOSPHERES
     constexpr double SPACE_LINE = 100000;
-    _max_height = SPACE_LINE;
-    _height_increment = height_increment;
-    _inv_height_increment = 1.0/height_increment;
+    const double inv_height_increment = 1.0/height_increment;
+
+    std::vector<Air> table;
+    table.reserve(static_cast<size_t>(SPACE_LINE/height_increment) + 1);
 
     double h = 0;
     double tref = ground_temperature;
@@ -321,7 +334,7 @@ void Atmosphere::load(STD_ATMOSPHERES, double height_increment, double ground_te
     double avg_gas_const = 0;
     double avg_gamma = 0;
     int layer_count = 0;
-    while(h < _max_height)
+    while(h < SPACE_LINE)
     {
         Air air;
 
@@ -371,31 +384,42 @@ void Atmosphere::load(STD_ATMOSPHERES, double height_increment, double ground_te
         air.inv_sound_speed = 1.0/sqrt(air.gamma*air.specific_gas_constant*air.temperature);
         air.density = air.pressure/(air.specific_gas_constant*air.temperature);
 
-        _table.push_back(air);
+        table.push_back(air);
 
         h += height_increment;
         layer_count++;
     }
 
-    compute_linear_factors();
+    return AtmosphereLinearTable(table, 0.0, height_increment);
 }
 
-void Atmosphere::load(const std::string&)
+AtmosphereLinearTable AtmosphereLinearTable::create(const std::string& filename)
 {
-    // TODO:
+    std::ifstream file(filename);
+    if(!file.is_open())
+    {
+        throw std::runtime_error("Unable to open file: " + filename);
+    }
+
+    std::string line;
+    if(!std::getline(file, line)) 
+    {
+        throw std::runtime_error("Invalid file format: " + filename);
+    }
+
+    std::vector<Air> table;
+    while(std::getline(file, line))
+    {
+        std::vector<std::string> values = input::split(line);
+        if(values.size()!= Air::NVALUES) 
+        {
+            break;
+        }
+        Air air;
+    }
 }
 
-void Atmosphere::set_constant(const Air& air)
-{
-    _max_height = 1e300;
-    _height_increment = 1e300;
-    _inv_height_increment = 0.0;
-    _table.push_back(air);
-    _table.push_back(air);
-    _linear_factors.push_back({0.0,0.0,0.0,0.0,0.0,0.0,0.0});
-}
-
-void Atmosphere::set_air(double height, Air& air) const
+void AtmosphereLinearTable::set_air(double height, Air& air) const
 {
     if(height > _max_height)
     {

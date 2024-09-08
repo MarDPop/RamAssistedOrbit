@@ -7,7 +7,7 @@
 
 namespace input {
 
-    std::vector<std::string> split(std::string str) {
+    inline std::vector<std::string> split(std::string str) {
         std::vector<std::string> tokens;
         std::istringstream iss(str);
         std::string token;
@@ -17,7 +17,7 @@ namespace input {
         return tokens;
     }
 
-    std::vector<std::string> split(std::string str, char delimiter) {
+    inline std::vector<std::string> split(std::string str, char delimiter) {
         std::vector<std::string> tokens;
         std::string token;
         std::istringstream tokenStream(str);
