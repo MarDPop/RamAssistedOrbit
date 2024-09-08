@@ -289,7 +289,6 @@ AtmosphereLinearTable AtmosphereLinearTable::create(double scale_height, double 
     double max_height, double height_increment, double min_height)
 {
     constexpr double MW_DRY = 0.0289652;
-    const double inv_height_increment = 1.0/height_increment;
 
     Air air;
     air.temperature = reference_temperature;
@@ -321,7 +320,6 @@ AtmosphereLinearTable AtmosphereLinearTable::create(STD_ATMOSPHERES, double heig
 {
     // TODO: use STD_ATMOSPHERES
     constexpr double SPACE_LINE = 100000;
-    const double inv_height_increment = 1.0/height_increment;
 
     std::vector<Air> table;
     table.reserve(static_cast<size_t>(SPACE_LINE/height_increment) + 1);
@@ -417,6 +415,9 @@ AtmosphereLinearTable AtmosphereLinearTable::create(const std::string& filename)
         }
         Air air;
     }
+    // TODO
+
+    return AtmosphereLinearTable(table, 1.0, 1.0);
 }
 
 void AtmosphereLinearTable::set_air(double height, Air& air) const

@@ -249,15 +249,17 @@ struct Air
         temperature(temperature_), dynamic_viscosity(dynamic_viscosity_), gamma(gamma_), 
         specific_gas_constant(specific_gas_constant_) {}
 
-    Air(double pressure_, double temperature_) : pressure(pressure_), specific_gas_constant(Air::GAS_CONSTANT/Air::DRY_AIR_MW),
-        density(pressure/(specific_gas_constant*temperature)), 
-        inv_sound_speed(1.0/sqrt(gamma*specific_gas_constant*temperature)),
-        temperature(temperature_), dynamic_viscosity(dynamic_viscosity_sutherland(temperature)), gamma(1.4) {}
+    Air(double pressure_, double temperature_) : pressure(pressure_), 
+        density(pressure*Air::DRY_AIR_MW/(Air::GAS_CONSTANT*temperature)), 
+        inv_sound_speed(1.0/sqrt(gamma*Air::GAS_CONSTANT*temperature/Air::DRY_AIR_MW)),
+        temperature(temperature_), dynamic_viscosity(dynamic_viscosity_sutherland(temperature)), 
+        gamma(1.4), specific_gas_constant(Air::GAS_CONSTANT/Air::DRY_AIR_MW) {}
 
     Air(double pressure_, double temperature_, double gamma_ = 1.4, double mw = 0.028137, 
-        double dynamic_viscosity_ = 1.61e-5) : pressure(pressure_), specific_gas_constant(Air::GAS_CONSTANT/mw), 
-        density(pressure_/(specific_gas_constant*temperature_)), inv_sound_speed(1.0/sqrt(gamma*specific_gas_constant*temperature)),
-        temperature(temperature_), gamma(gamma_) {}
+        double dynamic_viscosity_ = 1.61e-5) : pressure(pressure_),  
+        density(pressure_*mw/(Air::GAS_CONSTANT*temperature_)), inv_sound_speed(1.0/sqrt(gamma*Air::GAS_CONSTANT/mw*temperature)),
+        temperature(temperature_),dynamic_viscosity(dynamic_viscosity_), gamma(gamma_),
+        specific_gas_constant(Air::GAS_CONSTANT/mw) {}
 
     /* OBJECT METHODS */
     double* data()

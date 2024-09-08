@@ -194,13 +194,13 @@ class ODE_RK4 final : public virtual ODE<T>
     {
         _x0 = this->_x;
 
-        this->_f(this->_x, this->_t, _dx);
+        this->_f(this->_x, this->_t, this->_dx);
 
         this->_t += _dt_half;
 
         for(auto i = 0u; i < T::N_STATES; i++)
         {
-            this->_x[i] = _x0[i] + _dx[i]*_dt_half;
+            this->_x[i] = _x0[i] + this->_dx[i]*_dt_half;
         }
         this->_f(this->_x, this->_t, _k2);
 
@@ -225,7 +225,7 @@ class ODE_RK4 final : public virtual ODE<T>
 
         for(auto i = 0u; i < T::N_STATES; i++)
         {
-            _k3[i] = _dx[i] + _k2[i] + _k2[i] + _k4[i];
+            _k3[i] = this->_dx[i] + _k2[i] + _k2[i] + _k4[i];
         }
 
         for(auto i = 0u; i < T::N_STATES; i++)
@@ -254,12 +254,12 @@ class ODE_HUEN_EULER final : public virtual ODE<T>
     {
         _x0 = this->_x;
         _t0 = this->_t;
-        this->_f(this->_x, this->_t, _dx);
+        this->_f(this->_x, this->_t, this->_dx);
         for(auto iter = 0u; iter < NUM_ITER; iter++)
         {
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _x1[i] = _x0[i] + _dx[i]*this->_dt;
+                _x1[i] = _x0[i] + this->_dx[i]*this->_dt;
             }
 
             this->_f(_x1, _t0 + this->_dt, _k1);
@@ -267,7 +267,7 @@ class ODE_HUEN_EULER final : public virtual ODE<T>
             const double dt_half = this->_dt*0.5;
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                this->_x[i] = _x0[i] + (_dx[i] + _k1[i])*dt_half;
+                this->_x[i] = _x0[i] + (this->_dx[i] + _k1[i])*dt_half;
             }
 
             // compute diff
@@ -300,13 +300,14 @@ public:
 template<typename T>
 class ODE_RK45 final : public virtual ODE<T>
 {
-    static constexpr unsigned MAX_ITER = 20u;
+    static constexpr unsigned MAX_ITER = 3u;
 
     std::array<double, T::N_STATES> _k1;
     std::array<double, T::N_STATES> _k2;
     std::array<double, T::N_STATES> _k3;
     std::array<double, T::N_STATES> _k4;
     std::array<double, T::N_STATES> _k5;
+    std::array<double, T::N_STATES> _k6;
 
     std::array<double, 4> h;
 
@@ -325,65 +326,65 @@ class ODE_RK45 final : public virtual ODE<T>
     {
         _x0 = this->_x;
         _t0 = this->_t;
-        this->_f(this->_x, this->_t, _dx);
+        this->_f(this->_x, this->_t, this->_dx);
         // note that multiplying by dt for the dt terms more efficient only with low number of states
         // also vectorization improves efficiency of multiplying constants by dt instead of for each state
         for(auto iter = 0u; iter < MAX_ITER; iter++)
         {
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _k1[i] = _dx[i]*_dt;
-                _x[i] = _x0[i] + _k1[i]*B[0];
+                _k1[i] = this->_dx[i]*this->_dt;
+                this->_x[i] = _x0[i] + _k1[i]*B[0];
             }
-            this->_f(_x, _t0 + A[0]*_dt, _k2);
+            this->_f(this->_x, _t0 + A[0]*this->_dt, _k2);
 
-            h[1] = _dt*B[2];
+            h[1] = this->_dt*B[2];
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _x[i] = _x0[i] + _k1[i]*B[1] + _k2[i]*h[1];
+                this->_x[i] = _x0[i] + _k1[i]*B[1] + _k2[i]*h[1];
             }
-            this->_f(_x, _t0 + A[1]*_dt, _k3);
+            this->_f(this->_x, _t0 + A[1]*this->_dt, _k3);
 
-            h[0] = _dt*B[4];
-            h[1] = _dt*B[5];
+            h[0] = this->_dt*B[4];
+            h[1] = this->_dt*B[5];
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _x[i] = _x0[i] + _k1[i]*B[3] + _k2[i]*h[0] + _k3[i]*h[1];
+                this->_x[i] = _x0[i] + _k1[i]*B[3] + _k2[i]*h[0] + _k3[i]*h[1];
             }
-            this->_f(_x, _t0 + A[2]*_dt, _k4);
+            this->_f(this->_x, _t0 + A[2]*this->_dt, _k4);
 
-            h[0] = _dt*B[7];
-            h[1] = _dt*B[8];
-            h[2] = _dt*B[9];
+            h[0] = this->_dt*B[7];
+            h[1] = this->_dt*B[8];
+            h[2] = this->_dt*B[9];
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _x[i] = _x0[i] + _k1[i]*B[6] + _k2[i]*h[0] + _k3[i]*h[1] + _k4[i]*h[2];
+                this->_x[i] = _x0[i] + _k1[i]*B[6] + _k2[i]*h[0] + _k3[i]*h[1] + _k4[i]*h[2];
             }
-            this->_f(_x, _t0 + A[3]*_dt, _k5);
+            this->_f(this->_x, _t0 + A[3]*this->_dt, _k5);
  
-            h[0] = _dt*B[11];
-            h[1] = _dt*B[12];
-            h[2] = _dt*B[13];
-            h[3] = _dt*B[14];
+            h[0] = this->_dt*B[11];
+            h[1] = this->_dt*B[12];
+            h[2] = this->_dt*B[13];
+            h[3] = this->_dt*B[14];
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _x[i] = _x0[i] + _k1[i]*B[10] + _k2[i]*h[0] + _k3[i]*h[1] + _k4[i]*h[2]  + _k5[i]*h[3];
+                this->_x[i] = _x0[i] + _k1[i]*B[10] + _k2[i]*h[0] + _k3[i]*h[1] + _k4[i]*h[2]  + _k5[i]*h[3];
             }
-            this->_f(_x, _t0 + A[4]*_dt, _k6);
+            this->_f(this->_x, _t0 + A[4]*this->_dt, _k6);
 
-            h[0] = _dt*C[1];
-            h[1] = _dt*C[2];
-            h[2] = _dt*C[3];
-            h[3] = _dt*C[4];
+            h[0] = this->_dt*C[1];
+            h[1] = this->_dt*C[2];
+            h[2] = this->_dt*C[3];
+            h[3] = this->_dt*C[4];
             for(auto i = 0u; i < T::N_STATES; i++)
             {
-                _x[i] = _x0[i] + C[0]*_k1[i] + _k3[i]*h[0] + _k4[i]*h[1]  + _k5[i]*h[2] + _k6[i]*h[3];
+                this->_x[i] = _x0[i] + C[0]*_k1[i] + _k3[i]*h[0] + _k4[i]*h[1]  + _k5[i]*h[2] + _k6[i]*h[3];
             }
 
-            h[0] = _dt*D[1];
-            h[1] = _dt*D[2];
-            h[2] = _dt*D[3];
-            h[3] = _dt*D[4];
+            h[0] = this->_dt*D[1];
+            h[1] = this->_dt*D[2];
+            h[2] = this->_dt*D[3];
+            h[3] = this->_dt*D[4];
             double max_err = 0.0;
             for(auto i = 0u; i < T::N_STATES; i++)
             {
@@ -393,7 +394,7 @@ class ODE_RK45 final : public virtual ODE<T>
             }
 
             const double factor = sqrt(sqrt(max_err));// std::pow(max_err, -0.2);
-            _dt = std::clamp(_dt*0.9/factor, options.min_stepsize, options.max_stepsize);
+            this->_dt = std::clamp(this->_dt*0.9/factor, options.min_stepsize, options.max_stepsize);
             constexpr double error_threshold = 0.95;
             if(factor < error_threshold) 
             {

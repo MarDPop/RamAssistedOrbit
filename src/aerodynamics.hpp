@@ -2,13 +2,13 @@
 #define AERODYNAMICS_H
 
 #include "atmosphere.hpp"
-
 #include "input.hpp"
 
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <Eigen/Dense>
 
 #include <array>
+#include <fstream>
 
 struct AeroQuantities
 {
@@ -247,7 +247,7 @@ private:
     unsigned _beta_idx = 0u;
 
     AerodynamicAeroTablePlane(const std::array<double, N_MACH>& mach, 
-        const std::array<double, N_ALPHA>& alpha, const std::array<double, N_BETA>& ,
+        const std::array<double, N_ALPHA>& alpha, const std::array<double, N_BETA>& beta,
         const std::vector<std::array<double, N_COEF>>& table)  
         : MACH(mach), ALPHA(alpha), BETA(beta), _table(table),
         D_MACH(get_delta(mach)), D_ALPHA(get_delta(alpha)), D_BETA(get_delta(beta)) {}
@@ -265,13 +265,13 @@ private:
         const unsigned idx = _mach_idx*N_BETA*N_ALPHA + _alpha_idx*N_BETA + _beta_idx;
         double* coefs[8];
         coefs[0] = _table[idx].data();
-        coefs[1] = _table[idx + _idx_offsets[0]].data();
-        coefs[2] = _table[idx + _idx_offsets[1]].data();
-        coefs[3] = _table[idx + _idx_offsets[2]].data();
-        coefs[4] = _table[idx + _idx_offsets[3]].data();
-        coefs[5] = _table[idx + _idx_offsets[4]].data();
-        coefs[6] = _table[idx + _idx_offsets[5]].data();
-        coefs[7] = _table[idx + _idx_offsets[6]].data();
+        coefs[1] = _table[idx + idx_offsets[0]].data();
+        coefs[2] = _table[idx + idx_offsets[1]].data();
+        coefs[3] = _table[idx + idx_offsets[2]].data();
+        coefs[4] = _table[idx + idx_offsets[3]].data();
+        coefs[5] = _table[idx + idx_offsets[4]].data();
+        coefs[6] = _table[idx + idx_offsets[5]].data();
+        coefs[7] = _table[idx + idx_offsets[6]].data();
 
         const double f_mach = (aero.mach - MACH[_mach_idx])*D_MACH[_mach_idx];
         const double f_alpha = (aero.alpha_angle - ALPHA[_alpha_idx])*D_ALPHA[_alpha_idx];
@@ -308,14 +308,14 @@ public:
         std::vector<std::array<double, N_COEF>> table;
         std::vector<double> mach, alpha, beta;
 
-        std::ifstream input(filename);
-        if (!input.is_open())
+        std::ifstream inputfile(filename);
+        if (!inputfile.is_open())
         {
             std::cerr << "Error opening file: " << filename << std::endl;
             return AerodynamicAeroTablePlane({}, {}, {}, table);
         }
         std::string line;
-        while (std::getline(input, line))
+        while (std::getline(inputfile, line))
         {
             auto tokens = input::split(line);
 
@@ -334,7 +334,7 @@ public:
             }
             table.push_back(row);
         }
-        input.close();
+        inputfile.close();
 
         if(table.size() != N_MACH*N_ALPHA*N_BETA)
         {
