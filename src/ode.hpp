@@ -402,6 +402,10 @@ class ODE_RK45 final : public virtual ODE<T>
             }
         }
     }
+public:
+
+    ODE_RK45(T& f) : 
+        ODE<T>(f) {}
 };
 
 

@@ -15,8 +15,8 @@ Eigen::Vector3d Earth::get_fictional_forces(const Eigen::Vector3d& ecef_position
 Eigen::Vector3d Earth::get_gravity(const Eigen::Vector3d& ecef_position)
 {
     double r2 = ecef_position.dot(ecef_position);
-    double den = -Earth::MU/(r2*sqrt(r2));
-    return ecef_position*den;
+    r2 = -Earth::MU/(r2*sqrt(r2));
+    return ecef_position*r2;
 }
 
 Eigen::Vector3d Earth::get_J2_gravity(const Eigen::Vector3d& ecef_position)

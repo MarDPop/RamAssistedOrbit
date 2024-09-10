@@ -5,11 +5,25 @@ project(AirBreathingAssist)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
-include_directories(${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+#SET( CMAKE_CXX_FLAGS_DEBUG  "")
+#SET( CMAKE_CXX_FLAGS_RELEASE  "")
+# SET( CMAKE_CXX_FLAGS  "-march=native -Wall")
 
-file(GLOB SRC_FILES CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/*.hpp" "${PROJECT_SOURCE_DIR}/src/*.cpp")
+if (MSVC)
+    # warning level 4
+    # add_compile_options(/W4)
+else()
+    # additional warnings
+    # add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
-add_executable(sim ${SRC_FILES})
+# find_package(Eigen3 3.4 REQUIRED)
+
+set(TOP_DIR ${PROJECT_SOURCE_DIR})
+
+add_subdirectory(src)
+add_subdirectory(test)
+
 
 # set(CMAKE_CXX_COMPILER g++)
 # set(CMAKE_C_COMPILER gcc)

@@ -8,10 +8,22 @@ namespace functions
 void quaternion_orientation_rate(const double* q, 
     const double* angular_velocity_body, double* q_dot)
 {
-    q_dot[0] = (angular_velocity_body[2] * q[1] - angular_velocity_body[1] * q[2] + angular_velocity_body[0] * q[3]) * 0.5;
-    q_dot[1] = (-angular_velocity_body[2] * q[0] + angular_velocity_body[0] * q[2] + angular_velocity_body[1] * q[3]) * 0.5;
-    q_dot[2] = (angular_velocity_body[1] * q[0] - angular_velocity_body[0] * q[1] + angular_velocity_body[2] * q[3]) * 0.5;
-    q_dot[3] = (-angular_velocity_body[0] * q[0] - angular_velocity_body[1] * q[1] - angular_velocity_body[2] * q[2]) * 0.5; // scalar
+    constexpr unsigned int X = 0;
+    constexpr unsigned int Y = 1;
+    constexpr unsigned int Z = 2;
+    constexpr unsigned int W = 3;
+    q_dot[X] = (angular_velocity_body[Z]*q[Y] - angular_velocity_body[Y]*q[Z] + angular_velocity_body[X]*q[W])*0.5;
+    q_dot[Y] = (-angular_velocity_body[Z]*q[X] + angular_velocity_body[X]*q[Z] + angular_velocity_body[Y]*q[W])*0.5;
+    q_dot[Z] = (angular_velocity_body[Y]*q[X] - angular_velocity_body[X]*q[Y] + angular_velocity_body[Z]*q[W])*0.5;
+    q_dot[W] = (-angular_velocity_body[X]*q[X] - angular_velocity_body[Y]*q[Y] - angular_velocity_body[Z]*q[Z])*0.5; // scalar
+}
+
+void quaternion_orientation_rate(const Eigen::Quaterniond& q, 
+    const Eigen::Vector3d& angular_velocity_body, Eigen::Quaterniond& q_dot)
+{
+    Eigen::Quaterniond w(0.0, 0.5*angular_velocity_body[0], 0.5*angular_velocity_body[1],
+        0.5*angular_velocity_body[2]);
+    q_dot = q*w;
 }
 
 void angular_acceleration_from_torque_principal_axis(const double* torque, const double* angular_velocity,

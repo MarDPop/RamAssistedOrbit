@@ -36,10 +36,10 @@
             "CD0" : 0.02,
             "INDUCED_DRAG_K" : 0.3,
             "ALPHA0" : 0.001,
-            "CL_ALPHA" : 5.0,
+            "CL_ALPHA" : 4.0,
             "CM_ALPHA" : -0.001,
-            "DCD_DEL" : 0.00000,
-            "DCM_DEL" : 0.2,
+            "DCD_DEL" : 0.000,
+            "DCM_DEL" : 0.5,
             "STALL_ANGLE" : 0.15,
             "MAX_EL_DEFLECTION" : 0.1,
             "AREF" : 1.0,
@@ -47,10 +47,10 @@
         }
     },
     "ODE" : {
-        "MIN_STEP_SIZE" : 1e-4,
+        "MIN_STEP_SIZE" : 1e-3,
         "MAX_STEP_SIZE" : 1e-1,
         "MAX_RUNTIME" : 1000,
-        "TYPE" : 2,
+        "TYPE" : 0,
         "RECORDING_INTERVAL" : 0.1
     }
 }

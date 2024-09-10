@@ -76,10 +76,13 @@ void VehicleBase::set_dx(std::array<double, 14>& dx)
 {
     Eigen::Vector3d ecef_acceleration = _body_frame_ecef.transpose()*(_body_force*(1.0/_state.body.mass));
 
-    ecef_acceleration += Earth::get_fictional_forces(_state.body.position, _state.body.velocity) + Earth::get_J2_gravity(_state.body.position);
+    Eigen::Vector3d x = _body_frame_ecef.row(0);
+
+    // ecef_acceleration += Earth::get_fictional_forces(_state.body.position, _state.body.velocity) + Earth::get_J2_gravity(_state.body.position);
+    ecef_acceleration += Earth::get_fictional_forces(_state.body.position, _state.body.velocity) + Earth::get_gravity(_state.body.position);
 
     // Add fake damping to increase simulation stability
-    constexpr double fake_rotation_damping = 0.001;
+    constexpr double fake_rotation_damping = 0.0001;
     _body_moment -= (_state.body.angular_velocity*fake_rotation_damping); // remember angular_velocity is in body frame
 
     memcpy(&dx[0], _state.body.velocity.data(), 3*sizeof(double));
@@ -97,6 +100,7 @@ void VehicleBase::operator()(const std::array<double, 14>& x, const double t,
     // Set state
     _state.x = x;
     _inertia.set_mass(_state.body.mass);
+    _state.body.orientation.normalize();
 
     this->update_environment();
 
@@ -155,8 +159,7 @@ RamjetVehicle::RamjetVehicle(const InertialProperties& I, const Atmosphere& atmo
 void RamjetVehicle::update_control(double)
 {
     const double POWER_MARGIN = 0.95 - std::max((_cruise_mach - _aero.mach)*0.2, 0.0);
-    const double drag = _aerodynamics.get_body_force()[0];
-    const double excess_power = (_ramjet.get_thrust() + drag)*_aero.airspeed;
+    const double excess_power = (_ramjet.get_thrust() + _aerodynamics.get_body_force()[0])*_aero.airspeed;
     const double max_climb_rate = std::max(excess_power*POWER_MARGIN/(GForce::G*_state.body.mass), 0.0);
 
     const double desired_climb_rate = _lla.altitude > _cruise_altitude ? 0.0 : max_climb_rate;
@@ -176,7 +179,7 @@ void RamjetVehicle::update_control(double)
     
     #ifdef DEBUG
         double pitch = asin(2*(_state.body.orientation.x()*_state.body.orientation.z() 
-                 - _state.body.orientation.y()*_state.body.orientation.w()));
+                 + _state.body.orientation.y()*_state.body.orientation.w()))*57.295779513082;
         std::cout << "current pitch: " << pitch << " ";
         std::cout << "current climb right: " << current_climb_rate << " ";
         std::cout << "desired: " << desired_climb_rate << " ";
@@ -212,7 +215,7 @@ void RamjetVehicle::update_body_forces(double time)
 
     #ifdef DEBUG
         std::cout << "Thrust: " << _ramjet.get_thrust() << " ";
-        std::cout << "ISP: " << _ramjet.get_thrust()/_ramjet.get_mass_rate()*9.806 << " ";
+        std::cout << "ISP: " << _ramjet.get_thrust()/(_ramjet.get_mass_rate()*9.806) << " ";
         std::cout << "Dyn Pres: " <<_aero.dynamic_pressure;
         std::cout << std::endl;
     #endif

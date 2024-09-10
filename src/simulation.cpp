@@ -179,6 +179,9 @@ SimulationResult run(json& config)
         case 2:
             ode = new ODE_RK4<RamjetVehicle>(rVehicle);
             break;
+        case 3: 
+            ode = new ODE_RK45<RamjetVehicle>(rVehicle);
+            break;
         default:
             ode = new ODE<RamjetVehicle>(rVehicle);
     }

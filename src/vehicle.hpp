@@ -16,10 +16,10 @@
 #include <memory>
 #include <string>
 
-union State
+union alignas(16) State
 {
     std::array<double, 14> x;
-    struct
+    struct alignas(16)
     {
         Eigen::Vector3d position; // in ECEF meters
         Eigen::Vector3d velocity; // in ECEF meters / sec

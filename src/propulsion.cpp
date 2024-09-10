@@ -25,7 +25,7 @@ RamjetFixedInlet::RamjetFixedInlet(double throat_area, double exit_area,
 
 void RamjetFixedInlet::update_thrust(const Air& air, const AeroQuantities& aero) 
 {
-    constexpr double MIN_MACH = 1.1;
+    constexpr double MIN_MACH = 1.01;
     if(aero.mach < MIN_MACH) 
     {
         _thrust = 0;

@@ -41,7 +41,7 @@ ax1.set_aspect('equal')
 ax2.plot(track_t,track_speed)
 
 #%%
-rad2deg = 57.12
+rad2deg = 57.2957795
 pos = []
 vel = []
 quat = []
@@ -54,42 +54,57 @@ gForce = []
 altitude = []
 elevator = []
 thrust = []
+nEntries = 0
 with open("../output/result.dat","r") as resultfile:
     lines = resultfile.readlines()
 
-    for line in lines:
-        arr = line.split()
-        times.append(float(arr[0]))
-        pos.append(np.array([float(arr[1]),float(arr[2]),float(arr[3])]))
-        vel.append(np.array([float(arr[4]),float(arr[5]),float(arr[6])]))
-        quat.append(np.array([float(arr[7]),float(arr[8]),float(arr[9]),float(arr[10])]))
-        angVel.append(np.array([float(arr[11]),float(arr[12]),float(arr[13])]))
-        mass.append(float(arr[14]))
-        mach.append(float(arr[15]))
-        flightAngle.append(float(arr[16]))
-        gForce.append(float(arr[17]))
-        altitude.append(float(arr[18]))
+    nEntries = len(lines)
+    pos = np.zeros((nEntries, 3))
+    vel = np.zeros((nEntries, 3))
+    quat = np.zeros((nEntries, 4))
+    angVel = np.zeros((nEntries, 3))
+    mass = np.zeros((nEntries, 1))
+    times = np.zeros((nEntries, 1))
+    mach = np.zeros((nEntries, 1))
+    flightAngle = np.zeros((nEntries, 1))
+    gForce = np.zeros((nEntries, 1))
+    altitude = np.zeros((nEntries, 1))
+    elevator = np.zeros((nEntries, 1))
+    thrust = np.zeros((nEntries, 1))
+    AoA = np.zeros((nEntries,1))
+    speed = np.zeros((nEntries,1))
+    pitch = np.zeros((nEntries,1))
+
+    for i in range(nEntries):
+        arr = lines[i].split()
+        times[i] = float(arr[0])
+        pos[i,:] = np.array([float(arr[1]), float(arr[2]), float(arr[3])])
+        vel[i,:] = np.array([float(arr[4]), float(arr[5]), float(arr[6])])
+        quat[i,:] = np.array([float(arr[7]), float(arr[8]), float(arr[9]), float(arr[10])])
+        angVel[i,:] = np.array([float(arr[11]), float(arr[12]), float(arr[13])])
+        mass[i] = float(arr[14])
+        mach[i] = float(arr[15])
+        flightAngle[i] = float(arr[16])
+        gForce[i] = float(arr[17])
+        altitude[i] = float(arr[18])
      
         if len(arr) > 20:
-            elevator.append(float(arr[19])*rad2deg)
-            thrust.append(float(arr[20]))
+            elevator[i] = float(arr[19])*rad2deg
+            thrust[i]= float(arr[20])
         else:
-            elevator.append(0)
-            thrust.append(0)
-AoA = []
-speed = []
-pitch = []
-for i in range(len(times)):
-    rotm = quaternion_to_matrix(quat[i])
-    up = pos[i] / np.linalg.norm(pos[i])
-    z = np.dot(rotm[:,0],up)
-    p = np.arcsin(z)
-    pitch.append(p*rad2deg)
-    s = np.linalg.norm(vel[i])
-    speed.append(s)
-    velz = np.dot(vel[i],up)
-    angleOfAttack = p - np.arcsin(velz/s)
-    AoA.append(angleOfAttack*rad2deg)
+            elevator[i] = 0
+            thrust[i] = 0
+
+        rotm = quaternion_to_matrix(quat[i,:])
+        up = pos[i,:] / np.linalg.norm(pos[i,:])
+        z = np.dot(rotm[:,0],up)
+        p = np.arcsin(z)
+        pitch[i] = p*rad2deg
+        speed[i] = np.linalg.norm(vel[i,:])
+        velz = np.dot(vel[i,:],up)
+        angleOfAttack = p - np.arcsin(velz/speed[i])
+        AoA[i] = angleOfAttack*rad2deg
+
     
 pitch[0] = 0
         
@@ -126,5 +141,12 @@ ax44.plot(times, AoA, color = 'tab:red', label='AoA')
 ax4.grid()
 ax4.legend()
 ax44.legend()
+
+ax3d = plt.figure().add_subplot(projection='3d')
+
+ax3d.plot(pos[:,0], pos[:,1], pos[:,2])
+ax3d.set_xlabel('x')
+ax3d.set_ylabel('y')
+ax3d.set_zlabel('z')
 
 plt.show()
