@@ -6,22 +6,6 @@
 #include <iostream>
 #include <stdio.h>
 
-std::string State::to_json_string() const
-{
-    std::string output = "{";
-    const char* VEC_FORMAT = "[%12.5f, %12.5f, %12.5f]";
-    char buff[100];
-  
-    output += "\'POS\':";
-    snprintf(buff, sizeof(buff), VEC_FORMAT, body.position(0), body.position(1), body.position(2));
-    output += buff;
-    output += ",\'VEL\':";
-    snprintf(buff, sizeof(buff), VEC_FORMAT, body.velocity(0), body.velocity(1), body.velocity(2));
-    output += buff;
-    output += "}";
-    return output;
-}
-
 InertialProperties::InertialProperties(double mass, std::array<double, 4> MOI, Eigen::Vector3d COM) :
     _mass_empty(mass), _MOI_empty(std::move(MOI)), _COM_empty(std::move(COM)) 
 {
@@ -59,6 +43,52 @@ void InertialProperties::set_mass(double mass)
     _MOI[3] = _MOI_empty[3] + _MOI_delta[3]*dm;
 }
 
+Eigen::Vector3d VehicleBase::acceleration_in_ecef() const 
+{
+    Eigen::Vector3d ecef_acceleration = _body_frame_ecef.transpose()*(_body_force/_state.body.mass);
+    ecef_acceleration += Earth::get_fictional_forces(_state.body.position, _state.body.velocity) + Earth::get_J2_gravity(_state.body.position);
+    return ecef_acceleration;
+}
+
+Eigen::Vector3d VehicleBase::acceleration_in_body() const 
+{
+    Eigen::Vector3d angular_accleration;
+    functions::angular_acceleration_from_torque_plane_symmetry(_body_moment.data(), 
+        _state.body.angular_velocity.data(), _inertia.get_MOI().data(), angular_accleration.data());
+    return angular_accleration;
+}
+
+void set_acceleration(const Eigen::Vector3d& body_force, const Eigen::Matrix3d& orientation, double mass, 
+    const Eigen::Vector3d& position, const Eigen::Vector3d& velocity, double* acc)
+{
+    const Eigen::Vector3d accel = orientation.transpose()*(body_force/mass);
+    const Eigen::Vector3d gravity = Earth::get_J2_gravity(position);
+    const double x_fic = Earth::EARTH_ROTATION_RATE*(Earth::EARTH_ROTATION_RATE*position[0] - 2.0*velocity[1]);
+    const double y_fic = Earth::EARTH_ROTATION_RATE*(Earth::EARTH_ROTATION_RATE*position[1] + 2.0*velocity[0]);
+    acc[0] = accel[0] + gravity[0] - x_fic;
+    acc[1] = accel[1] + gravity[1] - y_fic;
+    acc[2] = accel[2] + gravity[2];
+}
+
+void VehicleBase::set_dx(std::array<double, 14>& dx)
+{
+    memcpy(&dx[0], _state.body.velocity.data(), 3*sizeof(double));
+    set_acceleration(_body_force, _body_frame_ecef, _state.body.mass, _state.body.position, _state.body.velocity, &dx[3]);
+    functions::quaternion_orientation_rate(&_state.x[6],_state.body.angular_velocity.data(), &dx[6]);
+    functions::angular_acceleration_from_torque_plane_symmetry(_body_moment.data(), 
+        _state.body.angular_velocity.data(), _inertia.get_MOI().data(), &dx[10]);
+    dx[13] = _mass_rate;
+}
+
+void VehicleBase::update(double time)
+{
+    _inertia.set_mass(_state.body.mass);
+    _state.body.orientation.normalize();
+    this->update_environment();
+    this->update_control(time);
+    this->update_body_forces(time);
+}
+
 void VehicleBase::update_environment()
 {
     // Get frames, rotation matrices, and other reference quantities
@@ -72,44 +102,7 @@ void VehicleBase::update_environment()
     _aero.update(_air, _state.body.velocity, _body_frame_ecef);
 }
 
-void VehicleBase::set_dx(std::array<double, 14>& dx)
-{
-    Eigen::Vector3d ecef_acceleration = _body_frame_ecef.transpose()*(_body_force*(1.0/_state.body.mass));
 
-    Eigen::Vector3d x = _body_frame_ecef.row(0);
-
-    // ecef_acceleration += Earth::get_fictional_forces(_state.body.position, _state.body.velocity) + Earth::get_J2_gravity(_state.body.position);
-    ecef_acceleration += Earth::get_fictional_forces(_state.body.position, _state.body.velocity) + Earth::get_gravity(_state.body.position);
-
-    // Add fake damping to increase simulation stability
-    constexpr double fake_rotation_damping = 0.0001;
-    _body_moment -= (_state.body.angular_velocity*fake_rotation_damping); // remember angular_velocity is in body frame
-
-    memcpy(&dx[0], _state.body.velocity.data(), 3*sizeof(double));
-    memcpy(&dx[3], ecef_acceleration.data(), 3*sizeof(double));
-    functions::quaternion_orientation_rate(&_state.x[6],_state.body.angular_velocity.data(), &dx[6]);
-    functions::angular_acceleration_from_torque_plane_symmetry(_body_moment.data(), 
-        _state.body.angular_velocity.data(), _inertia.get_MOI().data(), &dx[10]);
-
-    dx[13] = _mass_rate;
-}
-
-void VehicleBase::operator()(const std::array<double, 14>& x, const double t, 
-        std::array<double, 14>& dx)
-{
-    // Set state
-    _state.x = x;
-    _inertia.set_mass(_state.body.mass);
-    _state.body.orientation.normalize();
-
-    this->update_environment();
-
-    this->update_control(t);
-
-    this->update_body_forces(t);
-
-    this->set_dx(dx);
-}
 
 VehicleBase::operator bool() const
 {

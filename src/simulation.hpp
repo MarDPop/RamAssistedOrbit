@@ -1,9 +1,9 @@
 #ifndef SIMULATION_H
 #define SIMULATION_H
 
+#include "atmosphere.hpp"
 #include "dynamic_array.hpp"
-#include "ode.hpp"
-#include "vehicle.hpp"
+#include "state_6dof.hpp"
 #include "track_dynamics.hpp"
 
 #include <nlohmann/json.hpp>
@@ -27,7 +27,7 @@ namespace Simulation
     struct SimulationResult
     {
         std::vector<double> times;
-        std::vector<State> ecef_states;
+        std::vector<State_6DOF> ecef_states;
         std::vector<DerivedQuantities> derived;
         std::vector<dynamic_array<double>> other_data;
         double start_ramjet;
@@ -36,7 +36,7 @@ namespace Simulation
     };
 
     std::vector<DerivedQuantities> get_derived(const std::vector<double>& times, 
-        const std::vector<State>& ecef, const Atmosphere& atm);
+        const std::vector<State_6DOF>& ecef, const Atmosphere& atm);
 
     json load_config(const std::string& fileName);
 

@@ -1,5 +1,5 @@
-#ifndef ODE_H
-#define ODE_H
+#ifndef ODE_HPP
+#define ODE_HPP
 
 #include <array>
 #include <algorithm>
@@ -15,7 +15,7 @@ class Dynamics
 public:
     static constexpr unsigned N_STATES = NSTATES;
 
-    virtual void operator()(const std::array<double, NSTATES>& x, const double t, 
+    virtual void operator()(std::array<double, NSTATES>& x, const double t, 
         std::array<double, NSTATES>& dx) = 0;
 
     [[nodiscard]] virtual operator bool() const 
@@ -119,7 +119,7 @@ public:
         _run_options_terminated = false;
         _dynamics_terminated = false;
 
-        _f(options.initial_state, options.initial_time, _dx);
+        _f(_x, _t, _dx);
 
         _setup(options);
 

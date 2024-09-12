@@ -3,14 +3,14 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstint>
+#include <cstdint>
 #include <limits>
 
 #define _USE_MATH_DEFINES
 
 constexpr double INV_LN2 = 1.0 / M_LN2;
 
-inline sqrt_approx(float x)
+inline float sqrt_approx(float x)
 {
 	union 
 	{
@@ -21,17 +21,18 @@ inline sqrt_approx(float x)
 	val.i -= (1 << 23);
 	val.i >>= 1;
 	val.i += (1 << 29);
+	return val.f;
 }
 
 inline double sqrt_approx(double d)
 {
 	double x;
 	asm (
-		"movq %1, %%xmm0 ]n"
+		"movq %1, %%xmm0 \n"
 		"sqrtsd %%xmm0, %%xmm1 \n"
 		"movq %%xmm1, %0 \n"
-		: "=r" (x)
-		: "g" (d)
+		: "=r"(x)
+		: "g"(d)
 		: "xmm0", "xmm1", "memory"
 	);
 	return x;
@@ -44,7 +45,7 @@ inline float fast_rsqrt(float x)
 		uint32_t i;
 	} conv = {x};
 	conv.i = 0x5f3759df - (conv.i >> 1);
-	conv.f *= 1.5f - (x*0.5f*conv.f*conf.f);
+	conv.f *= 1.5f - (x*0.5f*conv.f*conv.f);
 	return conv.f;
 }
 
@@ -235,6 +236,7 @@ namespace poly
 		}
 	};
 	
+	template<typename Float>
 	void poly2(const Float* x, const poly2_x_t<Float>& x_const, const Float* y, const unsigned n, Float* coef)
 	{
 		Float sumY = 0.0;

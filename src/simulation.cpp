@@ -2,9 +2,11 @@
 
 #include "atmosphere.hpp"
 #include "constants.hpp"
+#include "earth.hpp"
 #include "ode.hpp"
 #include "output.hpp"
 #include "track_dynamics.hpp"
+#include "vehicle.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -31,7 +33,7 @@ json load_config(const std::string& fileName)
 }
 
 std::vector<DerivedQuantities> get_derived(const std::vector<double>& times, 
-    const std::vector<State>& states, const Atmosphere& atm)
+    const std::vector<State_6DOF>& states, const Atmosphere& atm)
 {
     std::vector<DerivedQuantities> derived(times.size());
     for(auto i = 0u; i < times.size(); i++)
@@ -61,7 +63,7 @@ std::vector<DerivedQuantities> get_derived(const std::vector<double>& times,
     return derived;
 }
 
-std::array<double,6> get_final_orbital_elements(const State& state)
+std::array<double,6> get_final_orbital_elements(const State_6DOF& state)
 {
     Eigen::Vector3d velocity_eci = state.body.velocity;
     velocity_eci(0) -= Earth::EARTH_ROTATION_RATE*state.body.position(1);
@@ -93,7 +95,8 @@ SimulationResult run(json& config)
         config["TRACK"]["EXIT_SPEED"], config["TRACK"]["EXIT_ANGLE"].template get<double>()*DEG2RAD);
 
     std::cout << "**** Track End State **** \n";
-    std::cout << track_end_state.to_json_string() << "\n";
+    std::cout << track_end_state.body.position << "\n";
+    std::cout << track_end_state.body.velocity << "\n";
     std::cout << "**** Setup Vehicle Simulation ****" << std::endl;
 
     const double startMass = config["INERTIAL_PROPERTIES"]["MASS_0"].template get<double>();
@@ -234,7 +237,7 @@ SimulationResult run(json& config)
     for(auto i = 0u; i < ode->recording().times.size(); i++)
     {
         result.times.push_back(ode->recording().times[i] + result.start_ramjet);
-        State state;
+        State_6DOF state;
         state.x = ode->recording().states[i];
         result.ecef_states.push_back(state);
         dynamic_array<double> other(nData);

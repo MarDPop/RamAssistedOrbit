@@ -108,10 +108,10 @@ Track track_dynamics::generate_track(double max_g, double friction_coef, double 
     return track;
 }
 
-State track_dynamics::generate_exit_ecef_state(double launch_longitude, 
+State_6DOF track_dynamics::generate_exit_ecef_state(double launch_longitude, 
         double launch_latitude, double launch_altitude, double launch_heading, double launch_speed, double launch_angle)
 {
-    State ecef_state;
+    State_6DOF ecef_state;
     ecef_state.x.fill(0.0);
     // get ECEF position
     Earth::Geodetic lla = {launch_longitude, launch_latitude, launch_altitude};
@@ -141,12 +141,12 @@ State track_dynamics::generate_exit_ecef_state(double launch_longitude,
     return ecef_state;
 }
 
-std::vector<State> track_dynamics::convert_track_states(const Track& track, double mass, double launch_longitude, 
+std::vector<State_6DOF> track_dynamics::convert_track_states(const Track& track, double mass, double launch_longitude, 
         double launch_latitude, double launch_altitude, double launch_heading, double launch_speed, double launch_angle)
 {
-    std::vector<State> states;
+    std::vector<State_6DOF> states;
 
-    State ecef_end_state = track_dynamics::generate_exit_ecef_state(launch_longitude, launch_latitude, launch_altitude, 
+    State_6DOF ecef_end_state = track_dynamics::generate_exit_ecef_state(launch_longitude, launch_latitude, launch_altitude, 
         launch_heading, launch_speed, launch_angle);
 
     Eigen::Matrix3d NED = Earth::getNED(launch_longitude, launch_latitude);
@@ -163,7 +163,7 @@ std::vector<State> track_dynamics::convert_track_states(const Track& track, doub
     double z_old = 0;
     for(const auto& x : track.x)
     {
-        State state;
+        State_6DOF state;
         state.body.position = ecef_end_state.body.position + (x[0] - x_final)*track_x_axis - (x[1] - z_final)*track_z_axis;
         state.body.velocity = track_x_axis*x[2] - track_z_axis*x[3];
         double speed = sqrt(x[2]*x[2] + x[3]*x[3]);

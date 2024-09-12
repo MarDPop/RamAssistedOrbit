@@ -7,6 +7,7 @@
 #include "gnc.hpp"
 #include "ode.hpp"
 #include "propulsion.hpp"
+#include "state_6dof.hpp"
 
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include "Eigen/Dense"
@@ -15,25 +16,6 @@
 #include <exception>
 #include <memory>
 #include <string>
-
-union alignas(16) State
-{
-    std::array<double, 14> x;
-    struct alignas(16)
-    {
-        Eigen::Vector3d position; // in ECEF meters
-        Eigen::Vector3d velocity; // in ECEF meters / sec
-        Eigen::Quaterniond orientation; // remember stored x,y,z,w 
-        // represents rotation matrix [x axis forward, y to right, z down] (row major, ie rotation from ecef to body frame)
-        Eigen::Vector3d angular_velocity; // remember this is expressed in body frame in rad / sec
-        double mass; // in kg
-    } body; 
-
-    State() {}
-    State(const State& state) : x(state.x) {}
-
-    [[nodiscard]] std::string to_json_string() const;
-};
 
 class InertialProperties
 {
@@ -81,34 +63,40 @@ protected:
 
     friend class Navigation;
 
-    State _state;
+    friend class Vehicle_ODE;
 
-    Eigen::Matrix3d _body_frame_ecef;
+    State_6DOF _state{};
+
+    Eigen::Matrix3d _body_frame_ecef = Eigen::Matrix3d::Identity();
 
     InertialProperties _inertia;
 
-    Eigen::Vector3d _body_force;
+    Eigen::Vector3d _body_force = {0.0,0.0,0.0};
 
-    Eigen::Vector3d _body_moment;
+    Eigen::Vector3d _body_moment = {0.0,0.0,0.0};
 
     double _mass_rate = 0.0;
 
-    Earth::Geodetic _lla;
+    Earth::Geodetic _lla = {0.0, 0.0, 0.0};
 
     Eigen::Matrix3d _ENU2ECEF = Eigen::Matrix3d::Identity();
 
-    Air _air;
+    Air _air{};
 
-    AeroQuantities _aero;
+    AeroQuantities _aero{};
 
     const Atmosphere& _atmosphere;
 
 public:
 
     VehicleBase(const InertialProperties& I, const Atmosphere& atmosphere) : 
-        _inertia(I), _body_force(0,0,0), _body_moment(0,0,0), _atmosphere(atmosphere) {}
+        _inertia(I), _atmosphere(atmosphere) {}
 
     virtual ~VehicleBase() {}
+
+    [[nodiscard]] Eigen::Vector3d acceleration_in_ecef() const;
+
+    [[nodiscard]] Eigen::Vector3d acceleration_in_body() const;
 
     [[nodiscard]] const Air& get_air() const
     {
@@ -120,21 +108,60 @@ public:
         return _aero;
     }
 
-    [[nodiscard]] double get_altitude() const
+    [[nodiscard]] const Earth::Geodetic& get_lla() const
     {
-        return _lla.altitude;
+        return _lla;
+    }
+
+    [[nodiscard]] const Eigen::Vector3d& get_body_force() const
+    {
+        return _body_force;
+    }
+
+    [[nodiscard]] const Eigen::Vector3d& get_body_moment() const
+    {
+        return _body_moment;
+    }
+
+    [[nodiscard]] const Eigen::Matrix3d& get_body_frame_ecef() const
+    {
+        return _body_frame_ecef;
+    }
+
+    [[nodiscard]] double get_mass_rate() const
+    {
+        return _mass_rate;
+    }
+
+    [[nodiscard]] const State_6DOF& get_state() const
+    {
+        return _state;
+    }
+
+    [[nodiscard]] std::vector<double> get_other_values() const 
+    {
+        return std::vector<double>{};
     }
 
     void update_environment();
 
     void set_dx(std::array<double, 14>& dx);
 
+    void update(double time);
+
     virtual void update_control([[maybe_unused]] double time) {}
 
     virtual void update_body_forces([[maybe_unused]] double time) {}
 
-    void operator()(const std::array<double, 14>& x, const double t, 
-        std::array<double, 14>& dx) override final;
+    void operator()(std::array<double, 14>& x, const double t, 
+        std::array<double, 14>& dx) override final
+    {
+        // Set state
+        functions::normalize_quat(&x[6]);
+        _state.x = x;
+        this->update(t);
+        this->set_dx(dx);
+    }
 
     operator bool() const override;
 
