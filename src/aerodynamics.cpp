@@ -70,7 +70,7 @@ void update_coef(const AeroQuantities& aero);
 
 AerodynamicBasicCoefficients::AerodynamicBasicCoefficients(const Coef& coef) : Aerodynamics(),
     coef_scaled({coef.CD0*coef.A_ref, coef.K/coef.A_ref, coef.alpha0, coef.CL_alpha*coef.A_ref,
-    coef.CM_alpha*coef.A_ref*coef.L_ref, coef.dCD_dEl*coef.A_ref, coef.dCM_dEl*coef.A_ref*coef.L_ref,
+    coef.CM_alpha*coef.A_ref*coef.L_ref, coef.CN_beta*coef.A_ref*coef.L_ref, coef.dCD_dEl*coef.A_ref, coef.dCM_dEl*coef.A_ref*coef.L_ref,
     coef.stall_angle, coef.max_elevator_deflection, coef.A_ref, coef.L_ref}) {}
 
 

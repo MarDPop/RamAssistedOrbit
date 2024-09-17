@@ -72,6 +72,7 @@ void set_acceleration(const Eigen::Vector3d& body_force, const Eigen::Matrix3d& 
 
 void VehicleBase::set_dx(std::array<double, 14>& dx)
 {
+    Eigen::Vector3d x = _body_frame_ecef.row(0);
     memcpy(&dx[0], _state.body.velocity.data(), 3*sizeof(double));
     set_acceleration(_body_force, _body_frame_ecef, _state.body.mass, _state.body.position, _state.body.velocity, &dx[3]);
     functions::quaternion_orientation_rate(&_state.x[6],_state.body.angular_velocity.data(), &dx[6]);
@@ -83,7 +84,6 @@ void VehicleBase::set_dx(std::array<double, 14>& dx)
 void VehicleBase::update(double time)
 {
     _inertia.set_mass(_state.body.mass);
-    _state.body.orientation.normalize();
     this->update_environment();
     this->update_control(time);
     this->update_body_forces(time);
@@ -93,7 +93,7 @@ void VehicleBase::update_environment()
 {
     // Get frames, rotation matrices, and other reference quantities
     // Body Frame
-    _body_frame_ecef = _state.body.orientation.toRotationMatrix();
+    _body_frame_ecef = _state.body.orientation.conjugate().toRotationMatrix();
     // Geodetic Frames
     Earth::getGeodeticFrame(_state.body.position, _lla, _ENU2ECEF.data());
     // Get Air 

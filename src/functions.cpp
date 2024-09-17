@@ -60,7 +60,7 @@ Eigen::Vector3d angular_acceleration_from_torque_plane_symmetry(const Eigen::Vec
 
 void normalize_quat(double* quaternion) 
 {
-    double norm = 1.0/sqrt(quaternion[0]*quaternion[0] + quaternion[1]*quaternion[1] 
+    const double norm = 1.0/sqrt(quaternion[0]*quaternion[0] + quaternion[1]*quaternion[1] 
         + quaternion[2]*quaternion[2] + quaternion[3]*quaternion[3]);
     quaternion[0] *= norm;
     quaternion[1] *= norm;

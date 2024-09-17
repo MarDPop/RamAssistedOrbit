@@ -91,7 +91,7 @@ protected:
         {
             _x[i] += _dx[i]*dt;
         }
-        _t += _dt;
+        _t += dt;
     }
 
     virtual void _setup([[maybe_unused]] const RunOptions<T::N_STATES>& options) {}

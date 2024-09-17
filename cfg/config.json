@@ -2,9 +2,10 @@
     "OUTPUT_DIRECTORY" : "output/",
     "INERTIAL_PROPERTIES" : {
         "MASS_0" : 1000,
-        "IXX_0" : 50,
-        "IYY_0" : 8500,
-        "IZZ_0" : 9500
+        "IXX_0" : 500,
+        "IYY_0" : 500,
+        "IZZ_0" : 500,
+        "IXZ_0" : 0
     },
     "TRACK" : {
         "LAUNCH_LONGITUDE" : 0,
@@ -38,6 +39,7 @@
             "ALPHA0" : 0.001,
             "CL_ALPHA" : 4.0,
             "CM_ALPHA" : -0.001,
+            "CN_BETA" : -0.0001,
             "DCD_DEL" : 0.000,
             "DCM_DEL" : 0.5,
             "STALL_ANGLE" : 0.15,

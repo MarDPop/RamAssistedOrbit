@@ -130,13 +130,13 @@ State_6DOF track_dynamics::generate_exit_ecef_state(double launch_longitude,
     // Get local tangent plane orientation
     Eigen::Matrix3d ENU2ECEF = Earth::getENU(launch_longitude, launch_latitude);
 
-    // multiply column major orientation to convert to ECEF frame then transpose to be row major
-    Eigen::Matrix3d vehicle_ecef_orientation = (ENU2ECEF*vehicle_ENU_orientation).transpose(); // row major
+    // multiply column major orientation to convert to ECEF frame 
+    Eigen::Matrix3d vehicle_ecef_orientation = ENU2ECEF*vehicle_ENU_orientation; // col major
 
     // convert to quaternion
     ecef_state.body.orientation = Eigen::Quaterniond(vehicle_ecef_orientation);
     
-    ecef_state.body.velocity = (vehicle_ecef_orientation.row(0))*launch_speed;
+    ecef_state.body.velocity = (vehicle_ecef_orientation.col(0))*launch_speed;
 
     return ecef_state;
 }
@@ -172,7 +172,8 @@ std::vector<State_6DOF> track_dynamics::convert_track_states(const Track& track,
         Eigen::Vector3d side = down.cross(forward);
         Eigen::Matrix3d rotm;
         // orientation is x forward, y to right, z down
-        rotm << forward(0), forward(1), forward(2), side(0), side(1), side(2), down(0), down(1), down(2); 
+        // rotm << forward(0), forward(1), forward(2), side(0), side(1), side(2), down(0), down(1), down(2);
+        rotm << forward(0), side(0), down(0), forward(1), side(1), down(1), forward(2), side(2), down(2); 
         state.body.orientation = Eigen::Quaterniond(rotm);
         if(states.size() > 0)
         {

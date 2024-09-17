@@ -127,7 +127,7 @@ SimulationResult run(json& config)
         startMass, 
         {config["INERTIAL_PROPERTIES"]["IXX_0"].template get<double>(),
         config["INERTIAL_PROPERTIES"]["IYY_0"].template get<double>(),
-        config["INERTIAL_PROPERTIES"]["IYY_0"].template get<double>()}, Eigen::Vector3d(0,0,0));
+        config["INERTIAL_PROPERTIES"]["IZZ_0"].template get<double>()}, Eigen::Vector3d(0,0,0));
 
     AerodynamicBasicCoefficients::Coef coef;
     coef.CD0 = config["RAMJET"]["AERODYNAMICS"]["CD0"].template get<double>();
@@ -135,6 +135,7 @@ SimulationResult run(json& config)
     coef.alpha0 = config["RAMJET"]["AERODYNAMICS"]["ALPHA0"].template get<double>();
     coef.CL_alpha = config["RAMJET"]["AERODYNAMICS"]["CL_ALPHA"].template get<double>();
     coef.CM_alpha = config["RAMJET"]["AERODYNAMICS"]["CM_ALPHA"].template get<double>();
+    coef.CN_beta = config["RAMJET"]["AERODYNAMICS"]["CN_BETA"].template get<double>();
     coef.stall_angle = config["RAMJET"]["AERODYNAMICS"]["STALL_ANGLE"].template get<double>();
     coef.dCD_dEl = config["RAMJET"]["AERODYNAMICS"]["DCD_DEL"].template get<double>();
     coef.dCM_dEl = config["RAMJET"]["AERODYNAMICS"]["DCM_DEL"].template get<double>();

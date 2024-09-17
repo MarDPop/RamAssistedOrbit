@@ -105,17 +105,18 @@ public:
 
     struct Coef
     {
-        double CD0;
-        double K;
-        double alpha0;
-        double CL_alpha;
-        double CM_alpha;
-        double dCD_dEl;
-        double dCM_dEl;
-        double stall_angle;
-        double max_elevator_deflection;
-        double A_ref;
-        double L_ref;
+        double CD0 = 0.0;
+        double K = 1.0;
+        double alpha0 = 0.0;
+        double CL_alpha = 1.0;
+        double CM_alpha = -1.0;
+        double CN_beta = -1.0;
+        double dCD_dEl = 0.0;
+        double dCM_dEl = 0.0;
+        double stall_angle = 1.0;
+        double max_elevator_deflection = 1.0;
+        double A_ref = 1.0;
+        double L_ref = 1.0;
     };  
 
     const Coef coef_scaled;

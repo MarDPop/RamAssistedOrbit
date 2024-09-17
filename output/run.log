@@ -1,5 +1,16 @@
 **** Running Track States **** 
 **** Track End State **** 
-{'POS':[6378337.00000,      0.00000,      0.00000],'VEL':[   198.37168,    545.02172,      0.00000]}
+6.37834e+06
+          0
+          0
+198.372
+545.022
+      0
 **** Setup Vehicle Simulation ****
 **** Running Vehicle Simulation ****
+**** Simulation Finished ****
+ODE simulation stopped prematurely
+Dynamics invalid
+entries: 4579
+Orbital El: 3.1948e+06 0.996286 0 0 0 3.14226 
+Writing output...
