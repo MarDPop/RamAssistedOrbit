@@ -52,6 +52,8 @@ public:
      */
     Thruster(double thrust, double isp) : _mass_rate(thrust/(isp*GForce::G)), _thrust(thrust)  {}
 
+    virtual ~Thruster(){}
+
     /**
      * Gets the mass of the thruster
      */
@@ -107,7 +109,17 @@ public:
     virtual void update_thrust([[maybe_unused]] const Air& air, [[maybe_unused]] const AeroQuantities& aero) {}
 };
 
-class RamjetFixedInlet final : public virtual Thruster
+class Ramjet : public virtual Thruster
+{
+
+public:
+
+    virtual ~Ramjet() {}
+
+    virtual bool can_operate(double air_pressure, double mach) const = 0;
+};
+
+class RamjetFixedInletFixedOutlet final : public virtual Ramjet
 {
 
     const double _throat_area;
@@ -117,6 +129,8 @@ class RamjetFixedInlet final : public virtual Thruster
     const double _nozzle_efficiency; // thrust losses due to friction and off axis velocity
 
     const double _nozzle_ram_ratio; // pressure ratio from combustor to nozzle exit
+
+    const double _max_mass_rate;
 
     const double _combustion_temperature;
 
@@ -136,29 +150,191 @@ class RamjetFixedInlet final : public virtual Thruster
 
     const double _p_exit_ratio;
 
+    const double _p_exit_crit_ratio;
+
     const double _exit_const;
+
+    const double _min_mach;
 
 public:
 
-    RamjetFixedInlet(double throat_area, double exit_area,
-        double nozzle_efficiency, double nozzle_ram_ratio, double dry_mass,
+    RamjetFixedInletFixedOutlet(double throat_area, double exit_area,
+        double nozzle_efficiency, double nozzle_ram_ratio, double dry_mass, double max_mass_rate,
         double combustion_temperature = 2800, double fuel_heating_value = 45e6, double max_fuel_air_ratio = 0.066, 
-        double gamma_combustion = 1.3, double mw_combustion = 0.040);
+        double gamma_combustion = 1.3, double mw_combustion = 0.040, double min_mach = 1.0);
 
-    static RamjetFixedInlet create(double mach, double altitude, double thrust, 
-        double thrust2weight, double nozzle_ram_ratio = 0.98);
+    RamjetFixedInletFixedOutlet(const RamjetFixedInletFixedOutlet& copy) = default;
+    RamjetFixedInletFixedOutlet(RamjetFixedInletFixedOutlet&& move) noexcept = default;
+    RamjetFixedInletFixedOutlet& operator=(const RamjetFixedInletFixedOutlet& copy) = default;
+    RamjetFixedInletFixedOutlet& operator=(RamjetFixedInletFixedOutlet&& move) noexcept = default;
 
-    static double ramRatio(double mach)
+    static RamjetFixedInletFixedOutlet create(double mach, double altitude, double thrust, 
+    double thrust2weight, double nozzle_ram_ratio = 0.98);
+
+    static double min_mach_number(double exit_pressure_ratio);
+
+    static double ram_ratio(double mach)
     {
         return mach < 2.0 ? 1.0 - 0.05*mach : 1.0 - (mach - 1.6)/(mach + 2.0);
     }
 
-    static double obliqueShockLosses(const std::vector<double>& angles, double mach, std::vector<double>& rampAngles);
+    static double oblique_shock_losses(const std::vector<double>& angles, double mach, std::vector<double>& rampAngles);
+
+    /**
+     * @brief Provides the ambient back pressure ratio which causes a shock at the exit of a nozzle
+     * @param exit_mach 
+     * @return ambient pressure ratio to total pressure 
+     */
+    static double shock_exit_pressure_ratio(double exit_mach);
+
+    bool can_operate(double air_pressure, double mach) const override
+    {
+        return mach > _min_mach;
+    }
+
+    double get_throat_area() const 
+    {
+        return _throat_area;
+    }
+
+    double get_exit_area() const
+    {
+        return _exit_area;
+    }
+
+    double get_nozzle_efficiency() const
+    {
+        return _nozzle_efficiency;
+    }
+
+    double get_nozzle_ram_ratio() const
+    {
+        return _nozzle_ram_ratio;
+    }
+
+    double get_combustion_temperature() const
+    {
+        return _combustion_temperature;
+    }
+
+    double get_fuel_heating_value() const
+    {
+        return _fuel_heating_value;
+    }
+
+    double get_max_fuel_air_ratio() const
+    {
+        return _max_fuel_air_ratio;
+    }
+
+    double get_max_mass_rate() const
+    {
+        return _max_mass_rate;
+    }
+
+    double get_gamma_combustion() const
+    {
+        return _gamma_combustion;
+    }
+
+    double get_cp_4() const
+    {
+        return _cp_4;
+    }
+
+    double get_specific_enthalpy_4() const
+    {
+        return _specific_enthalpy_4;
+    }
+
+    double get_exit_mach() const
+    {
+        return _exit_mach;
+    }
+   
+    void update_thrust(const Air& air, const AeroQuantities& aero) override;
+
+};
+
+class RamjetFixedInletVariableOutlet final : public virtual Ramjet
+{
+
+    const double _throat_area;
+
+    const double _min_exit_area;
+
+    const double _nominal_exit_area;
+
+    const double _max_exit_area;
+
+    const double _nozzle_efficiency; // thrust losses due to friction and off axis velocity
+
+    const double _combustion_temperature;
+
+    const double _fuel_heating_value;
+
+    const double _max_fuel_air_ratio;
+
+    const double _max_mass_rate;
+
+    const double _gamma_combustion;
+
+    const double _g1;
+
+    const double _g2;
+
+    const double _g3;
+
+    const double _g4;
+
+    const double _cp_4;
+
+    const double _specific_enthalpy_4;
+
+    const double _min_exit_mach;
+
+    const double _min_exit_area_temperature_ratio;    
+
+    const double _min_exit_area_pressure_ratio;
+
+    const double _max_exit_mach;
+
+    const double _max_exit_area_temperature_ratio;
+
+    const double _max_exit_area_pressure_ratio;
+
+    const double _exit_const;
+
+    const double _min_mach;
+
+public:
+
+    RamjetFixedInletVariableOutlet(double throat_area, double min_exit_area, 
+        double nominal_exit_area, double max_exit_area,
+        double nozzle_efficiency, double dry_mass, double max_mass_rate,
+        double combustion_temperature = 2800, double fuel_heating_value = 45e6, double max_fuel_air_ratio = 0.066, 
+        double gamma_combustion = 1.3, double mw_combustion = 0.040, double min_mach = 1.0);
+
+    RamjetFixedInletVariableOutlet(const RamjetFixedInletVariableOutlet& copy) = default;
+    RamjetFixedInletVariableOutlet(RamjetFixedInletVariableOutlet&& move) noexcept = default;
+    RamjetFixedInletVariableOutlet& operator=(const RamjetFixedInletVariableOutlet& copy) = default;
+    RamjetFixedInletVariableOutlet& operator=(RamjetFixedInletVariableOutlet&& move) noexcept = default;
+
+    static double nozzle_ram_ratio(double exit_area, double nominal_exit_area)
+    {
+        const double area_ratio = std::max(0.0, (nominal_exit_area - exit_area)/nominal_exit_area);
+        return 1.0 - 0.25*area_ratio*area_ratio;
+    }
+
+    bool can_operate(double air_pressure, double mach) const override
+    {
+        return mach > _min_mach;
+    }
 
     void update_thrust(const Air& air, const AeroQuantities& aero) override;
 };
 
-class RamjetVariableInlet final : public virtual Thruster
+class RamjetVariableInletVariableOutlet final : public virtual Ramjet
 {
     /**
      * Heating value of the fuel in J/kg
@@ -286,7 +462,7 @@ public:
      * @param exit_are m^2
      * @param heating_value_fuel J/kg
      */
-    RamjetVariableInlet( double max_mass_rate, double throat_area, double exit_area, double max_intake_area,
+    RamjetVariableInletVariableOutlet( double max_mass_rate, double throat_area, double exit_area, double max_intake_area,
         double heating_value_fuel = KEROSENE_HEATING_VALUE, double fuel_air_ratio = KEROSENE_FUEL_AIR_RATIO, 
         double combustion_efficiency = 1.0, double combustor_pressure_ratio = 1.0, double nozzle_efficiency = 1.0,
         double nozzle_pressure_ratio = 1.0, double adiabatic_efficiency = 1.0);
@@ -294,7 +470,7 @@ public:
     /**
      * Creates a ramjet
      */
-    static RamjetVariableInlet create(double thrust2weight, double altitude, double exit_mach, double cruiseSpeed,
+    static RamjetVariableInletVariableOutlet create(double thrust2weight, double altitude, double exit_mach, double cruiseSpeed,
         double lift2drag, double mass, double thrust_margin = 1.1, double mass_rate_margin = 2.0);
 
     /**
@@ -307,6 +483,11 @@ public:
      * 
      */
     void update_thrust(const Air& air, const AeroQuantities& aero) override;
+
+    bool can_operate(double air_pressure, double mach) const override
+    {
+        return mach > _min_exit_mach;
+    }
 };
 
 /**

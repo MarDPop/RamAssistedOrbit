@@ -1,0 +1,7 @@
+expected launch orientation for 20 deg launch: 
+
+[  0.3420202,  0.9396926, -0.0000000;
+   0.0000000, -0.0000000, -1.0000000;
+  -0.9396926,  0.3420202, -0.0000000 ]
+
+coincides with right wing pointing south

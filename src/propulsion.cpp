@@ -1,16 +1,36 @@
 #include "constants.hpp"
+#include "functions.hpp"
 #include "propulsion.hpp"
 
 #ifdef DEBUG
     #include <iostream>
 #endif
 
-RamjetFixedInlet::RamjetFixedInlet(double throat_area, double exit_area,
-        double nozzle_efficiency, double nozzle_ram_ratio, double dry_mass,
+double RamjetFixedInletFixedOutlet::shock_exit_pressure_ratio(double exit_mach)
+{
+    double p_ratio_exit = Air::isentropic_pressure_ratio(exit_mach);
+    double p_ratio_shock = 1.1666666666666666666666666666*exit_mach*exit_mach - 0.16666666666666666666666;
+    return p_ratio_shock/p_ratio_exit;
+}
+
+double RamjetFixedInletFixedOutlet::min_mach_number(double exit_pressure_ratio)
+{
+    double mach = 1.1;
+    for(int iter = 0; iter < 7; iter++) 
+    {
+        const double ratio = ram_ratio(mach);
+        mach =  Air::mach_from_isentropic_pressure_ratio(1.0/(exit_pressure_ratio*ratio));
+    }
+    return mach;
+}
+
+RamjetFixedInletFixedOutlet::RamjetFixedInletFixedOutlet(double throat_area, double exit_area,
+        double nozzle_efficiency, double nozzle_ram_ratio, double dry_mass, double max_mass_rate,
         double combustion_temperature, double fuel_heating_value, double max_fuel_air_ratio, 
-        double gamma_combustion, double mw_combustion) :
+        double gamma_combustion, double mw_combustion, double min_mach) :
     _throat_area(throat_area), _exit_area(exit_area),
     _nozzle_efficiency(nozzle_efficiency), _nozzle_ram_ratio(nozzle_ram_ratio),
+    _max_mass_rate(max_mass_rate),
     _combustion_temperature(combustion_temperature), _fuel_heating_value(fuel_heating_value), 
     _max_fuel_air_ratio(max_fuel_air_ratio), _gamma_combustion(gamma_combustion), 
     _cp_4(Air::GAS_CONSTANT*gamma_combustion/(gamma_combustion - 1.0)/mw_combustion),
@@ -18,44 +38,45 @@ RamjetFixedInlet::RamjetFixedInlet(double throat_area, double exit_area,
     _exit_mach(Air::supersonic_mach_area_ratio(throat_area/exit_area, gamma_combustion)),
     _t_exit_ratio(1.0/Air::isentropic_temperature_ratio(_exit_mach, gamma_combustion)),
     _p_exit_ratio(pow(_t_exit_ratio, gamma_combustion/(gamma_combustion - 1.0))),
-    _exit_const(Air::GAS_CONSTANT*gamma_combustion/mw_combustion)
+    _p_exit_crit_ratio(shock_exit_pressure_ratio(_exit_mach)),
+    _exit_const(Air::GAS_CONSTANT*gamma_combustion/mw_combustion),
+    _min_mach(min_mach_number(_p_exit_crit_ratio))
 {
     _dry_mass = dry_mass;
 }
 
-void RamjetFixedInlet::update_thrust(const Air& air, const AeroQuantities& aero) 
+void RamjetFixedInletFixedOutlet::update_thrust(const Air& air, const AeroQuantities& aero) 
 {
-    constexpr double MIN_MACH = 1.01;
-    if(aero.mach < MIN_MACH) 
-    {
-        _thrust = 0;
-        _mass_rate = 0;
-        return;
-    }
+    const auto beta = 1.0 + 0.2*aero.mach*aero.mach;
 
-    const auto g2 = (air.gamma - 1.0);
-    const auto g4 = air.gamma/g2;
-    const auto beta = 1.0 + 0.5*g2*aero.mach*aero.mach;
-
+    // Ambient
     const auto t_total_0 = air.temperature*beta;
-    const auto p_total_0 = air.pressure*pow(beta, g4);
-    const auto p_total_loss_diffusor = ramRatio(aero.mach);
+    const auto p_total_0 = air.pressure*beta*beta*beta*sqrt(beta);
+
+    // inlet
+    const auto p_total_loss_diffusor = ram_ratio(aero.mach);
     const auto p_total_2 = p_total_0*p_total_loss_diffusor;
-
-    const auto air_mass_rate = _throat_area*Air::choked_flow(p_total_2, t_total_0);
-
-    const auto specific_enthalpy_2 = air.specific_gas_constant*g4*t_total_0;
+    constexpr double t_total_inlet_loss = 0.998;
+    const auto t_total_2 = t_total_0*t_total_inlet_loss;
     
-    const auto fuel_mass_rate_desired = air_mass_rate*(_specific_enthalpy_4 - specific_enthalpy_2)
-        /(_fuel_heating_value - _specific_enthalpy_4);
+    // Get Fuel Rate
+    const auto air_mass_rate = _throat_area*Air::choked_flow(p_total_2, t_total_2);
 
-    _mass_rate = std::min(_max_fuel_air_ratio*air_mass_rate, fuel_mass_rate_desired);
+    constexpr double cp_air = 1005.0;
+    const auto specific_enthalpy_2 = cp_air*t_total_2; 
+    const auto fuel_mass_rate_desired = std::max(air_mass_rate*(_specific_enthalpy_4 - specific_enthalpy_2)
+        /(_fuel_heating_value - _specific_enthalpy_4), 0.0);
+
+    const double max_mass_rate = std::min(_max_fuel_air_ratio*air_mass_rate, _max_mass_rate);
+    _mass_rate = std::min(max_mass_rate, fuel_mass_rate_desired);
 
     const auto mixed_mass_rate = _mass_rate + air_mass_rate;
 
+    // Combustion Exit (Nozzle Entry)
     const auto t_total_4 = (_mass_rate*_fuel_heating_value + air_mass_rate*specific_enthalpy_2)
         /(_cp_4*mixed_mass_rate);
 
+    // Nozzle Exit
     constexpr double t_total_nozzle_loss = 0.98;
     const auto t_total_6 = t_total_nozzle_loss*t_total_4;
     const auto p_total_6 = _nozzle_ram_ratio*p_total_2;
@@ -64,10 +85,12 @@ void RamjetFixedInlet::update_thrust(const Air& air, const AeroQuantities& aero)
     
     const auto v_exit = _exit_mach*sqrt(_exit_const*t_6);
 
-    _thrust = std::max(mixed_mass_rate*v_exit*_nozzle_efficiency + _exit_area*(p_6 - air.pressure),0.0);
+    _running = aero.mach > _min_mach;
+
+    _thrust = mixed_mass_rate*v_exit*_nozzle_efficiency  - air_mass_rate*aero.airspeed + _exit_area*(p_6 - air.pressure);
 }
 
-RamjetFixedInlet RamjetFixedInlet::create(const double mach, const double altitude, const double thrust, 
+RamjetFixedInletFixedOutlet RamjetFixedInletFixedOutlet::create(const double mach, const double altitude, const double thrust, 
         const double thrust2weight, const double nozzle_ram_ratio)
 {
     AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
@@ -83,11 +106,11 @@ RamjetFixedInlet RamjetFixedInlet::create(const double mach, const double altitu
 
     const double t0 = air.temperature*Air::isentropic_temperature_ratio(aero.mach);
 
-    const double pratio = RamjetFixedInlet::ramRatio(aero.mach);
+    const double pratio = RamjetFixedInletFixedOutlet::ram_ratio(aero.mach);
 
     const double p02 = p0*pratio;
 
-    const double mass_flux = p02/Air::choked_flow(p02, t0);
+    const double mass_flux = Air::choked_flow(p02, t0);
 
     const double p04 = p02*nozzle_ram_ratio;
 
@@ -108,10 +131,112 @@ RamjetFixedInlet RamjetFixedInlet::create(const double mach, const double altitu
 
     const double exit_area = throat_area/Air::isentropic_area_ratio(mach_exit, gamma_products);
 
-    return RamjetFixedInlet(throat_area, exit_area, nozzle_efficiency, 0.98, thrust/thrust2weight/GForce::G);
+    constexpr double MASS_RATE_MARGIN = 1.2;
+    constexpr double DEFAULT_NOZZLE_RAM_RATIO = 0.995;
+    return RamjetFixedInletFixedOutlet(throat_area, exit_area, nozzle_efficiency, DEFAULT_NOZZLE_RAM_RATIO,
+        thrust/thrust2weight/GForce::G, mass_flow*MASS_RATE_MARGIN);
 }
 
-RamjetVariableInlet::RamjetVariableInlet( double max_mass_rate, double throat_area, double exit_area, double max_intake_area,
+RamjetFixedInletVariableOutlet::RamjetFixedInletVariableOutlet(double throat_area, double min_exit_area, 
+        double nominal_exit_area, double max_exit_area,
+        double nozzle_efficiency, double dry_mass, double max_mass_rate,
+        double combustion_temperature, double fuel_heating_value, double max_fuel_air_ratio, 
+        double gamma_combustion, double mw_combustion, double min_mach) :
+    _throat_area(throat_area), _min_exit_area(min_exit_area), 
+    _nominal_exit_area(nominal_exit_area), _max_exit_area(max_exit_area),
+    _nozzle_efficiency(nozzle_efficiency), 
+    _combustion_temperature(combustion_temperature), _fuel_heating_value(fuel_heating_value), 
+    _max_fuel_air_ratio(max_fuel_air_ratio), 
+    _max_mass_rate(max_mass_rate),
+    _gamma_combustion(gamma_combustion), _g1(0.5*(gamma_combustion - 1.0)), 
+    _g2((gamma_combustion - 1.0)/gamma_combustion),
+    _g3((gamma_combustion + 1.0)*0.5/(gamma_combustion - 1.0)),
+    _g4(pow((gamma_combustion + 1.0)*0.5, _g3)),
+    _cp_4(Air::GAS_CONSTANT/(_g2*mw_combustion)),
+    _specific_enthalpy_4(combustion_temperature*_cp_4),
+    _min_exit_mach(Air::supersonic_mach_area_ratio(throat_area/min_exit_area, gamma_combustion)),
+    _min_exit_area_temperature_ratio(1.0/Air::isentropic_temperature_ratio(_min_exit_mach, gamma_combustion)),
+    _min_exit_area_pressure_ratio(1.0/Air::isentropic_pressure_ratio(_min_exit_mach, gamma_combustion)),
+    _max_exit_mach(Air::supersonic_mach_area_ratio(throat_area/max_exit_area, gamma_combustion)),
+    _max_exit_area_temperature_ratio(1.0/Air::isentropic_temperature_ratio(_max_exit_mach, gamma_combustion)),
+    _max_exit_area_pressure_ratio(1.0/Air::isentropic_pressure_ratio(_max_exit_mach, gamma_combustion)),
+    _exit_const(Air::GAS_CONSTANT*gamma_combustion/mw_combustion),
+    _min_mach(RamjetFixedInletFixedOutlet::min_mach_number(RamjetFixedInletFixedOutlet::shock_exit_pressure_ratio(_min_exit_mach)))
+{
+    _dry_mass = dry_mass;
+}
+
+void RamjetFixedInletVariableOutlet::update_thrust(const Air& air, const AeroQuantities& aero) 
+{
+    using namespace functions;
+    const auto inlet_beta = Air::isentropic_temperature_ratio(aero.mach);
+
+    // Ambient
+    const auto t_total_0 = air.temperature*inlet_beta;
+    const auto p_total_0 = air.pressure*inlet_beta*inlet_beta*inlet_beta*sqrt(inlet_beta);
+
+    // inlet
+    const auto p_total_loss_diffusor = RamjetFixedInletFixedOutlet::ram_ratio(aero.mach);
+    const auto p_total_2 = p_total_0*p_total_loss_diffusor;
+    constexpr double t_total_inlet_loss = 0.998;
+    const auto t_total_2 = t_total_0*t_total_inlet_loss;
+    
+    // Get Fuel Rate
+    const auto air_mass_rate = _throat_area*Air::choked_flow(p_total_2, t_total_2);
+
+    constexpr double cp_air = 1005.0;
+    const auto specific_enthalpy_2 = cp_air*t_total_2; 
+    const auto fuel_mass_rate_desired = std::max(air_mass_rate*(_specific_enthalpy_4 - specific_enthalpy_2)
+        /(_fuel_heating_value - _specific_enthalpy_4), 0.0);
+
+    const double max_mass_rate = std::min(_max_fuel_air_ratio*air_mass_rate, _max_mass_rate);
+    _mass_rate = std::min(max_mass_rate, fuel_mass_rate_desired);
+
+    const auto mixed_mass_rate = _mass_rate + air_mass_rate;
+
+    // Combustion Exit (Nozzle Entry)
+    const auto t_total_4 = (_mass_rate*_fuel_heating_value + air_mass_rate*specific_enthalpy_2)
+        /(_cp_4*mixed_mass_rate);
+    constexpr auto combustion_pressure_loss = 0.995;
+    const auto p_total_4 = p_total_2*combustion_pressure_loss;
+
+    // Nozzle Exit
+    // ideal expansion
+
+    const auto combustion_pressure_ratio = air.pressure/p_total_4;
+    double beta_exit = pow(combustion_pressure_ratio, -_g2);
+    double exit_mach = sqrt((beta_exit - 1.0)/_g1);
+    double exit_area = _throat_area*pow(beta_exit, _g3)/(exit_mach*_g4);
+    
+    auto pres_ratio = combustion_pressure_ratio;
+    auto temp_ratio = 1.0/beta_exit;
+    if(exit_area < _min_exit_area)
+    {
+        exit_area = _min_exit_area;
+        temp_ratio = _min_exit_area_temperature_ratio;
+        pres_ratio = _min_exit_area_pressure_ratio;
+    } 
+    else if(exit_area > _max_exit_area) 
+    {
+        exit_area = _max_exit_area;
+        exit_mach = _max_exit_mach;
+        temp_ratio = _max_exit_area_temperature_ratio;
+        pres_ratio = _max_exit_area_pressure_ratio;
+    }
+
+    constexpr double t_total_nozzle_loss = 0.98;
+    const auto t_total_6 = t_total_nozzle_loss*t_total_4;
+    const auto p_total_6 = nozzle_ram_ratio(exit_area, _nominal_exit_area)*p_total_4;
+
+    const auto t_6 = t_total_6*temp_ratio;
+    const auto p_6 = p_total_6*pres_ratio;
+    
+    const auto v_exit = exit_mach*sqrt(_exit_const*t_6);
+
+    _thrust = mixed_mass_rate*v_exit*_nozzle_efficiency - air_mass_rate*aero.airspeed + exit_area*(p_6 - air.pressure);
+}
+
+RamjetVariableInletVariableOutlet::RamjetVariableInletVariableOutlet( double max_mass_rate, double throat_area, double exit_area, double max_intake_area,
         double heating_value_fuel, double fuel_air_ratio, 
         double combustion_efficiency, double combustor_pressure_ratio, double nozzle_efficiency, 
         double nozzle_pressure_ratio, double adiabatic_efficiency) : 
@@ -137,7 +262,7 @@ RamjetVariableInlet::RamjetVariableInlet( double max_mass_rate, double throat_ar
     _min_mach_exit_temperature_ratio(adiabatic_efficiency/Air::isentropic_temperature_ratio(_min_exit_mach, GAMMA_COMBUSTION_PRODUCTS_KEROSENE))
     {}
 
-RamjetVariableInlet RamjetVariableInlet::create(double thrust2weight, double altitude, double exit_mach, double cruise_mach,
+RamjetVariableInletVariableOutlet RamjetVariableInletVariableOutlet::create(double thrust2weight, double altitude, double exit_mach, double cruise_mach,
     double lift2drag, double mass, const double thrust_margin, const double mass_rate_margin)
 {
     const double weight = mass*GForce::G;
@@ -170,14 +295,14 @@ RamjetVariableInlet RamjetVariableInlet::create(double thrust2weight, double alt
     for(int iter = 0; iter < MAXITERATIONS; iter++)
     {
         exit_area = exit_area_ratio*throat_area;
-        RamjetVariableInlet ramjet(1e10, throat_area, exit_area, throat_area*5e3);
+        RamjetVariableInletVariableOutlet ramjet(1e10, throat_area, exit_area, throat_area*5e3);
         ramjet.update_thrust(air, aero);
         double current_thrust = ramjet.get_thrust();
 
         double dA = throat_area*AREA_FRACTION;
         double throat_area1 = throat_area + dA;
         exit_area = exit_area_ratio*throat_area1;
-        RamjetVariableInlet ramjet2(1e10, throat_area1, exit_area, throat_area*5e3);
+        RamjetVariableInletVariableOutlet ramjet2(1e10, throat_area1, exit_area, throat_area*5e3);
         ramjet2.update_thrust(air, aero);
         double more_thrust = ramjet2.get_thrust();
 
@@ -192,20 +317,20 @@ RamjetVariableInlet RamjetVariableInlet::create(double thrust2weight, double alt
         }
     }
     double intakeAreaIdeal = throat_area/Air::isentropic_area_ratio(cruise_mach, AIR_GAMMA);
-    RamjetVariableInlet ramjet(mass_rate*mass_rate_margin, throat_area, exit_area, intakeAreaIdeal*1.2);
+    RamjetVariableInletVariableOutlet ramjet(mass_rate*mass_rate_margin, throat_area, exit_area, intakeAreaIdeal*1.2);
     ramjet._dry_mass = desired_thrust/(GForce::G*thrust2weight);
     ramjet.update_thrust(air, aero);
     return ramjet;
 }
 
-bool RamjetVariableInlet::can_turn_on(const Air& air, const AeroQuantities& aero) const 
+bool RamjetVariableInletVariableOutlet::can_turn_on(const Air& air, const AeroQuantities& aero) const 
 {
     double intake_area = _throat_area/Air::isentropic_area_ratio(aero.mach);
     const auto mdot_air = aero.airspeed*air.density*std::min(intake_area,_max_intake_area)*(-aero.air_body_vector.x());
     return mdot_air < _max_air_ingest;
 }
 
-void RamjetVariableInlet::update_thrust(const Air& air, const AeroQuantities& aero) 
+void RamjetVariableInletVariableOutlet::update_thrust(const Air& air, const AeroQuantities& aero) 
 {    
     const auto g1 = (air.gamma + 1.0)*0.5;
     const auto g2 = (air.gamma - 1.0);

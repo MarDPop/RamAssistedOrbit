@@ -146,7 +146,8 @@ SimulationResult run(json& config)
     const double cruise_lift2drag = 4*(config["RAMJET"]["CRUISE"]["MACH"].template get<double>() + 3)/
          config["RAMJET"]["CRUISE"]["MACH"].template get<double>();
 
-    auto ramjet = RamjetVariableInlet::create(config["RAMJET"]["THRUST2WEIGHT"].template get<double>(), 
+    /*
+    auto ramjet = RamjetVariableInletVariableOutlet::create(config["RAMJET"]["THRUST2WEIGHT"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["MACH"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["MACH"].template get<double>(), cruise_lift2drag, 
@@ -154,15 +155,24 @@ SimulationResult run(json& config)
         config["RAMJET"]["THRUST_MARGIN"].template get<double>());
 
     ramjet.stop();
+    */
 
     double thrust2weight = config["RAMJET"]["THRUST2WEIGHT"].template get<double>();
     double thrust = startMass*thrust2weight*GForce::G;
-    auto ramjet2 = RamjetFixedInlet::create(config["RAMJET"]["CRUISE"]["MACH"].template get<double>(),
+    auto ramjet_tmp = RamjetFixedInletFixedOutlet::create(config["RAMJET"]["CRUISE"]["MACH"].template get<double>(),
         config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(), 
         thrust,
         8.0);
+
+    auto ramjet = std::make_unique<RamjetFixedInletVariableOutlet>(ramjet_tmp.get_throat_area(), 
+        ramjet_tmp.get_exit_area()*0.32,
+        ramjet_tmp.get_exit_area()*0.64, 
+        ramjet_tmp.get_exit_area()*1.28,
+        ramjet_tmp.get_nozzle_efficiency(),
+        ramjet_tmp.get_dry_mass(),
+        ramjet_tmp.get_max_mass_rate());
     
-    RamjetVehicle rVehicle(I, atm, ramjet2, coef);
+    RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef);
 
     rVehicle.set_control_values(config["RAMJET"]["CONTROL"]["K1"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["C1"].template get<double>(), 

@@ -117,6 +117,11 @@ struct Air
         return pow(isentropic_temperature_ratio(mach, gamma), gamma/(gamma-1.0));
     }
 
+    static double mach_from_isentropic_pressure_ratio(double pressure_ratio)
+    {
+        return sqrt( 5*(pow(pressure_ratio, 0.2857142857142857142) - 1.0));
+    }
+
     /**
      * returns the ratio Pt/P where Pt is total pressure and T is pressure for any gamma
      * @param pressure_ratio Pt/P
@@ -124,9 +129,16 @@ struct Air
      */
     static double mach_from_isentropic_pressure_ratio(double pressure_ratio, double gamma)
     {
-        const double g1 = gamma - 1;
+        const double g1 = gamma - 1.0;
         return sqrt( 2.0/g1*(pow(pressure_ratio, g1/gamma) - 1.0));
     }
+
+    /**
+     * returns the ratio Pt/P where Pt is total pressure and T is pressure for any gamma
+     * @param pressure_ratio Pt/P
+     * @param gamma
+     */
+    // static double area_ratio_from_isentropic_pressure_ratio(double pressure_ratio, double gamma);
 
     /**
      * returns the ratio Astar/A where Astar is the critical area and A is the area to evaluate

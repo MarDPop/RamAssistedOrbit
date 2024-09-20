@@ -214,7 +214,7 @@ public:
 
 class RamjetVehicle final : public virtual VehicleBase
 {
-    RamjetFixedInlet _ramjet;
+    std::unique_ptr<Ramjet> _ramjet;
 
     AerodynamicBasicCoefficients _aerodynamics;
 
@@ -237,7 +237,7 @@ public:
     static constexpr unsigned NUM_DATA = 2u;
 
     RamjetVehicle(const InertialProperties& I, const Atmosphere& atmosphere, 
-        const RamjetFixedInlet& ramjet, const AerodynamicBasicCoefficients::Coef& coef);
+        std::unique_ptr<Ramjet> ramjet, const AerodynamicBasicCoefficients::Coef& coef);
     
     void set_control_values(double K1, double C1, double max_alpha, double min_alpha, double alpha_k,
         double cruise_altitude, double cruise_mach)

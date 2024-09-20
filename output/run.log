@@ -1,16 +1,16 @@
 **** Running Track States **** 
 **** Track End State **** 
-6.37834e+06
+6.37854e+06
           0
           0
-198.372
-545.022
+155.291
+579.555
       0
 **** Setup Vehicle Simulation ****
 **** Running Vehicle Simulation ****
 **** Simulation Finished ****
 ODE simulation stopped prematurely
 Dynamics invalid
-entries: 4579
-Orbital El: 3.1948e+06 0.996286 0 0 0 3.14226 
+entries: 2560
+Orbital El: -nan(ind) -nan(ind) -nan(ind) 0 0 -nan(ind) 
 Writing output...

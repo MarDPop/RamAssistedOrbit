@@ -5,7 +5,11 @@
 
 namespace functions
 {
-    
+    template<typename T>
+    T sq(const T x) { return x*x;}
+
+    template<typename T>
+    T cb(const T x) { return x*x*x;}
 
     /**
      * 

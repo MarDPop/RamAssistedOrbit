@@ -76,6 +76,8 @@ with open("../output/result.dat","r") as resultfile:
     pitch = np.zeros((nEntries,1))
 
     for i in range(nEntries):
+        if "nan" in lines[i]:
+            break
         arr = lines[i].split()
         times[i] = float(arr[0])
         pos[i,:] = np.array([float(arr[1]), float(arr[2]), float(arr[3])])
