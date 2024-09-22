@@ -155,23 +155,10 @@ RamjetVehicle::RamjetVehicle(const InertialProperties& I, const Atmosphere& atmo
 double AltitudeControl::update_elevator(double time, double altitude, double altitude_rate,
     double airspeed, double acceleration, double mass, double AoA, const double pitch_rate)
 {
-    double desired_pitch_rate = 0.0;
-    constexpr double acceleration_desired = 1.0;
-    if(altitude_rate < 0.0)
-    {
-        desired_pitch_rate = -altitude_rate*_K1;
-    }
-    else
-    {
-        if(altitude < _cruise_altitude)
-        {
-            desired_pitch_rate = (acceleration_desired - acceleration)*_K2;
-        }
-        else
-        {
-            desired_pitch_rate = (1.0 - altitude_rate)*_K1;
-        }
-    }
+    constexpr double acceleration_desired = 2.0;
+    constexpr double min_altitude_rate = 1.0;
+
+    double desired_pitch_rate = (min_altitude_rate - altitude_rate)*_K1 + (acceleration_desired - acceleration)*_K2;
 
     constexpr double PITCH_DOWN_RATE = -0.2;
     constexpr double PITCH_UP_RATE = 0.3;
