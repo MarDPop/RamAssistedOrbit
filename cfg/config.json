@@ -19,17 +19,17 @@
         "EXIT_ANGLE" : 12
     },
     "RAMJET" : {
-        "THRUST2WEIGHT" : 0.7,
+        "THRUST2WEIGHT" : 0.6,
         "THRUST_MARGIN" : 0.5,
         "WINGLOADING" : 600.0,
         "CRUISE" : {
-            "ALTITUDE" : 25000,
+            "ALTITUDE" : 28000,
             "MACH" : 3.5
         },
         "CONTROL" : {
-            "K1" : 0.01,
+            "K1" : 0.002,
             "K2" : -0.01,
-            "K3" : 0.001,
+            "K3" : 0.05,
             "K4" : 0.2,
             "MAX_ALPHA" : 0.06,
             "MIN_ALPHA" : 0.0,
