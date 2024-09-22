@@ -3,14 +3,14 @@
 6.37854e+06
           0
           0
-155.291
-579.555
+124.747
+586.889
       0
 **** Setup Vehicle Simulation ****
 **** Running Vehicle Simulation ****
 **** Simulation Finished ****
 ODE simulation stopped prematurely
 Dynamics invalid
-entries: 2560
-Orbital El: -nan(ind) -nan(ind) -nan(ind) 0 0 -nan(ind) 
+entries: 2326
+Orbital El: 3.1955e+06 0.995095 0 0 0 3.14327 
 Writing output...

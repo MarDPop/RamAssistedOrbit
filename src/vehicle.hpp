@@ -212,44 +212,68 @@ public:
     void update_body_forces(double time) override;
 };
 
+class AltitudeControl 
+{
+    const double _K1;
+
+    const double _K2;
+
+    const double _K3;
+
+    const double _K4;
+
+    const double _max_alpha;
+
+    const double _min_alpha;
+
+    const double _alpha_k;
+
+    const double _cruise_altitude;
+
+    const double _cruise_speed;
+
+    double _target_pitch = 0.0;
+
+    double _integral_err = 0.0;
+
+public:
+
+    AltitudeControl(double K1, double K2, double K3, double K4,
+        double max_alpha, double min_alpha, double alpha_k,
+        double cruise_altitude, double cruise_speed) : 
+        _K1(K1), _K2(K2), _K3(K3), _K4(K4),_max_alpha(max_alpha), _min_alpha(min_alpha), _alpha_k(alpha_k),
+        _cruise_altitude(cruise_altitude), _cruise_speed(cruise_speed) {}
+
+    AltitudeControl(const AltitudeControl& other) = default;
+    AltitudeControl(AltitudeControl&& other) noexcept = default;
+
+    double update_elevator(double time, double altitude, double altitude_rate,
+        double airspeed, double acceleration, double mass, double AoA, double pitch_rate);
+
+};
+
 class RamjetVehicle final : public virtual VehicleBase
 {
     std::unique_ptr<Ramjet> _ramjet;
 
     AerodynamicBasicCoefficients _aerodynamics;
 
-    double _K1;
+    AltitudeControl _control;
 
-    double _C1;
+    double _old_altitude = 0.0;
 
-    double _max_alpha;
+    double _old_time = 0.0;
 
-    double _min_alpha;
-
-    double _alpha_k;
-
-    double _cruise_altitude;
-
-    double _cruise_mach;
+    double _old_airspeed = 0.0;
 
 public:
 
     static constexpr unsigned NUM_DATA = 2u;
 
     RamjetVehicle(const InertialProperties& I, const Atmosphere& atmosphere, 
-        std::unique_ptr<Ramjet> ramjet, const AerodynamicBasicCoefficients::Coef& coef);
-    
-    void set_control_values(double K1, double C1, double max_alpha, double min_alpha, double alpha_k,
-        double cruise_altitude, double cruise_mach)
-    {
-        _K1 = K1;
-        _C1 = C1;
-        _max_alpha = max_alpha;
-        _min_alpha = min_alpha;
-        _alpha_k = alpha_k;
-        _cruise_altitude = cruise_altitude;
-        _cruise_mach = cruise_mach;
-    }
+        std::unique_ptr<Ramjet> ramjet, 
+        const AerodynamicBasicCoefficients::Coef& coef,
+        const AltitudeControl& control);
 
     void update_control(double time) override;
 

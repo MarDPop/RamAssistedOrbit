@@ -16,31 +16,33 @@
         "LINEAR_FRICTION" : 0.001,
         "MAX_G" : 3.5,
         "EXIT_SPEED" : 600,
-        "EXIT_ANGLE" : 15
+        "EXIT_ANGLE" : 12
     },
     "RAMJET" : {
-        "THRUST2WEIGHT" : 0.8,
+        "THRUST2WEIGHT" : 0.6,
         "THRUST_MARGIN" : 0.5,
-        "WINGLOADING" : 700.0,
+        "WINGLOADING" : 600.0,
         "CRUISE" : {
             "ALTITUDE" : 25000,
             "MACH" : 3.5
         },
         "CONTROL" : {
-            "K1" : 0.001,
-            "C1" : 0.001,
+            "K1" : 0.05,
+            "K2" : -0.2,
+            "K3" : 0.001,
+            "K4" : 0.2,
             "MAX_ALPHA" : 0.06,
             "MIN_ALPHA" : 0.0,
-            "ALPHA_K" : 0.0001
+            "ALPHA_K" : 0.00005
         },
         "AERODYNAMICS" : {
             "CD0" : 0.03,
             "INDUCED_DRAG_K" : 0.3,
-            "ALPHA0" : 0.001,
+            "ALPHA0" : 0.0,
             "CL_ALPHA" : 4.0,
             "CM_ALPHA" : -0.0001,
             "CN_BETA" : -0.0001,
-            "DCD_DEL" : 0.00001,
+            "DCD_DEL" : 0.0001,
             "DCM_DEL" : 0.005,
             "STALL_ANGLE" : 0.15,
             "MAX_EL_DEFLECTION" : 0.1,

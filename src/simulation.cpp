@@ -172,15 +172,17 @@ SimulationResult run(json& config)
         ramjet_tmp.get_dry_mass(),
         ramjet_tmp.get_max_mass_rate());
     
-    RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef);
-
-    rVehicle.set_control_values(config["RAMJET"]["CONTROL"]["K1"].template get<double>(), 
-        config["RAMJET"]["CONTROL"]["C1"].template get<double>(), 
+    AltitudeControl control(config["RAMJET"]["CONTROL"]["K1"].template get<double>(), 
+        config["RAMJET"]["CONTROL"]["K2"].template get<double>(), 
+        config["RAMJET"]["CONTROL"]["K3"].template get<double>(),
+        config["RAMJET"]["CONTROL"]["K4"].template get<double>(),
         config["RAMJET"]["CONTROL"]["MAX_ALPHA"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["MIN_ALPHA"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["ALPHA_K"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(),
         config["RAMJET"]["CRUISE"]["MACH"].template get<double>());
+
+    RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, control);
 
     //ODE_HUEN_EULER<RamjetVehicle> ode(rVehicle);
     int odeType = config["ODE"]["TYPE"].template get<int>();
