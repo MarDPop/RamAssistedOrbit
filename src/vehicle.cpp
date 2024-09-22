@@ -155,25 +155,20 @@ RamjetVehicle::RamjetVehicle(const InertialProperties& I, const Atmosphere& atmo
 double AltitudeControl::update_elevator(double time, double altitude, double altitude_rate,
     double airspeed, double acceleration, double mass, double AoA, const double pitch_rate)
 {
-    constexpr double acceleration_desired = 2.0;
-    constexpr double min_altitude_rate = 1.0;
+    const auto altitude_rate_err = std::max(_min_altitude_rate - altitude_rate, 0.0);
+    double desired_pitch_rate = altitude_rate_err*_K1 + (_acceleration_desired - acceleration)*_K2;
 
-    double desired_pitch_rate = (min_altitude_rate - altitude_rate)*_K1 + (acceleration_desired - acceleration)*_K2;
+    desired_pitch_rate = std::clamp(desired_pitch_rate, _max_pitch_down, _max_pitch_up);
 
-    constexpr double PITCH_DOWN_RATE = -0.2;
-    constexpr double PITCH_UP_RATE = 0.3;
-    desired_pitch_rate = std::clamp(desired_pitch_rate, PITCH_DOWN_RATE, PITCH_UP_RATE);
-
-    const auto angule_rate_err = desired_pitch_rate - pitch_rate;
+    const auto pitch_rate_err = desired_pitch_rate - pitch_rate;
     
-    const auto elevator_pitching = angule_rate_err*_K4;
+    const auto elevator_pitching = pitch_rate_err*_K4;
 
     const auto alpha_above_max = _max_alpha - AoA;
     const auto alpha_below_min = _min_alpha - AoA; // min is always 0, never have negative lift
     const auto elevator_alpha = (std::min(alpha_above_max, 0.0) + std::max(alpha_below_min, 0.0))*_alpha_k;
 
     const auto elevator_deflection = elevator_pitching + elevator_alpha;
-
     
     #ifdef DEBUG
         double pitch = asin(2*(_state.body.orientation.x()*_state.body.orientation.z() 

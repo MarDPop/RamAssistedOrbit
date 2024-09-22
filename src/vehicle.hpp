@@ -232,6 +232,14 @@ class AltitudeControl
 
     const double _cruise_speed;
 
+    const double _max_pitch_up;
+
+    const double _max_pitch_down;
+
+    const double _acceleration_desired;
+
+    const double _min_altitude_rate;
+
     double _target_pitch = 0.0;
 
     double _integral_err = 0.0;
@@ -240,9 +248,11 @@ public:
 
     AltitudeControl(double K1, double K2, double K3, double K4,
         double max_alpha, double min_alpha, double alpha_k,
-        double cruise_altitude, double cruise_speed) : 
-        _K1(K1), _K2(K2), _K3(K3), _K4(K4),_max_alpha(max_alpha), _min_alpha(min_alpha), _alpha_k(alpha_k),
-        _cruise_altitude(cruise_altitude), _cruise_speed(cruise_speed) {}
+        double cruise_altitude, double cruise_speed, double max_pitch_up = 0.2, double max_pitch_down = -0.1,
+        double acceleration_desired = 3.0, double min_altitude_rate = 1.0) : 
+            _K1(K1), _K2(K2), _K3(K3), _K4(K4),_max_alpha(max_alpha), _min_alpha(min_alpha), _alpha_k(alpha_k),
+            _cruise_altitude(cruise_altitude), _cruise_speed(cruise_speed), _max_pitch_up(max_pitch_up),
+            _max_pitch_down(max_pitch_down), _acceleration_desired(acceleration_desired), _min_altitude_rate(min_altitude_rate) {}
 
     AltitudeControl(const AltitudeControl& other) = default;
     AltitudeControl(AltitudeControl&& other) noexcept = default;
