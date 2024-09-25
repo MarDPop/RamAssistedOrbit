@@ -184,6 +184,8 @@ SimulationResult run(json& config)
 
     RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, control);
 
+    rVehicle.initNav(0.0, 400.0, 600.0);
+
     //ODE_HUEN_EULER<RamjetVehicle> ode(rVehicle);
     int odeType = config["ODE"]["TYPE"].template get<int>();
     ODE<RamjetVehicle>* ode;

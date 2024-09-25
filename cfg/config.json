@@ -27,10 +27,10 @@
             "MACH" : 3.5
         },
         "CONTROL" : {
-            "K1" : 0.002,
-            "K2" : -0.01,
+            "K1" : 1.0,
+            "K2" : 0.001,
             "K3" : 0.05,
-            "K4" : 0.2,
+            "K4" : 1.0,
             "MAX_ALPHA" : 0.06,
             "MIN_ALPHA" : 0.0,
             "ALPHA_K" : 0.005
@@ -43,7 +43,7 @@
             "CM_ALPHA" : -0.001,
             "CN_BETA" : -0.0001,
             "DCD_DEL" : 0.0001,
-            "DCM_DEL" : 0.005,
+            "DCM_DEL" : 0.003,
             "STALL_ANGLE" : 0.12,
             "MAX_EL_DEFLECTION" : 0.15,
             "AREF" : 1.0,

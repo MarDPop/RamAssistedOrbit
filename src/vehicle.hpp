@@ -240,9 +240,7 @@ class AltitudeControl
 
     const double _min_altitude_rate;
 
-    double _target_pitch = 0.0;
-
-    double _integral_err = 0.0;
+    double _target_altitude_rate = 0.0;
 
 public:
 
@@ -270,9 +268,9 @@ class RamjetVehicle final : public virtual VehicleBase
 
     AltitudeControl _control;
 
-    double _old_altitude = 0.0;
-
     double _old_time = 0.0;
+
+    double _old_altitude = 0.0;
 
     double _old_airspeed = 0.0;
 
@@ -284,6 +282,13 @@ public:
         std::unique_ptr<Ramjet> ramjet, 
         const AerodynamicBasicCoefficients::Coef& coef,
         const AltitudeControl& control);
+
+    void initNav(double time, double altitude, double airspeed)
+    {
+        _old_time = time;
+        _old_altitude = altitude;
+        _old_airspeed = airspeed;
+    }
 
     void update_control(double time) override;
 
