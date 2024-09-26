@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 InertialProperties::InertialProperties(double mass, std::array<double, 4> MOI, Eigen::Vector3d COM) :
-    _mass_empty(mass), _MOI_empty(std::move(MOI)), _COM_empty(std::move(COM)) 
+    mass_empty(mass), MOI_empty(std::move(MOI)), COM_empty(std::move(COM)) 
 {
     _MOI = MOI;
     _COM = COM;
@@ -17,7 +17,7 @@ InertialProperties::InertialProperties(double mass, std::array<double, 4> MOI, E
 
 InertialProperties::InertialProperties(double mass_empty, std::array<double, 4> MOI_empty, Eigen::Vector3d COM_empty,
     double mass_full, const std::array<double, 4>& MOI_full, const Eigen::Vector3d& COM_full) : 
-        _mass_empty(mass_empty), _MOI_empty(std::move(MOI_empty)), _COM_empty(std::move(COM_empty)) 
+        mass_empty(mass_empty), MOI_empty(std::move(MOI_empty)), COM_empty(std::move(COM_empty)) 
 {
     if(mass_full < mass_empty)
     {
@@ -34,13 +34,13 @@ InertialProperties::InertialProperties(double mass_empty, std::array<double, 4> 
 
 void InertialProperties::set_mass(double mass)
 {
-    double dm = mass - _mass_empty;
+    double dm = mass - mass_empty;
     for(auto i = 0u; i < 3; i++)
     {
-        _MOI[i] = _MOI_empty[i] + _MOI_delta[i]*dm;
-        _COM[i] = _COM_empty[i] + _COM_delta[i]*dm;
+        _MOI[i] = MOI_empty[i] + _MOI_delta[i]*dm;
+        _COM[i] = COM_empty[i] + _COM_delta[i]*dm;
     }
-    _MOI[3] = _MOI_empty[3] + _MOI_delta[3]*dm;
+    _MOI[3] = MOI_empty[3] + _MOI_delta[3]*dm;
 }
 
 Eigen::Vector3d VehicleBase::acceleration_in_ecef() const 
@@ -72,7 +72,7 @@ void set_acceleration(const Eigen::Vector3d& body_force, const Eigen::Matrix3d& 
 
 void VehicleBase::set_dx(std::array<double, 14>& dx)
 {
-    Eigen::Vector3d x = _body_frame_ecef.row(0);
+    //Eigen::Vector3d x = _body_frame_ecef.row(0);
     memcpy(&dx[0], _state.body.velocity.data(), 3*sizeof(double));
     set_acceleration(_body_force, _body_frame_ecef, _state.body.mass, _state.body.position, _state.body.velocity, &dx[3]);
     functions::quaternion_orientation_rate(&_state.x[6],_state.body.angular_velocity.data(), &dx[6]);
@@ -102,11 +102,9 @@ void VehicleBase::update_environment()
     _aero.update(_air, _state.body.velocity, _body_frame_ecef);
 }
 
-
-
 VehicleBase::operator bool() const
 {
-    return _lla.altitude > -1.0 & _lla.altitude < 1e8;
+    return _lla.altitude > -1.0 && _lla.altitude < 1e8 && _state.body.mass > _inertia.mass_empty;
 }
 
 void Vehicle::update_control(double time)
@@ -153,35 +151,32 @@ RamjetVehicle::RamjetVehicle(const InertialProperties& I, const Atmosphere& atmo
 {}
 
 double AltitudeControl::update_elevator(double dt, double altitude, double altitude_rate,
-    double airspeed, double acceleration, double AoA, const double pitch_rate)
+    double airspeed, double acceleration, double AoA, double pitch, double pitch_rate)
 {
-    const auto max_altitude_rate = std::max((_cruise_altitude - altitude)*_K3, _min_altitude_rate);
+    constexpr double SLIGHT_CLIMB = 2.0;
+    double altitude_rate_err = SLIGHT_CLIMB - altitude_rate;
+    double elevator_control = altitude_rate_err*_K3;
+    double target_pitch_rate = 0.0;
+    if(altitude < _cruise_altitude)
+    {
+        double acceleration_desired = altitude_rate*_K4;
+        double acceleration_err = acceleration_desired - acceleration;
+        target_pitch_rate = -acceleration_err*_K1;
+        elevator_control = std::max(elevator_control, 0.0);
+    } 
 
-    double acceleration_err = (altitude < _cruise_altitude)*(_acceleration_desired - acceleration);
-    _target_altitude_rate -= acceleration_err*dt*_K1;
-
-    _target_altitude_rate = std::clamp(_target_altitude_rate, _min_altitude_rate, max_altitude_rate);
-
-    const auto altitude_rate_err = _target_altitude_rate - altitude_rate;
-
-    double desired_pitch_rate = std::clamp(altitude_rate_err*_K2, _max_pitch_down, _max_pitch_up);
-
-    const auto pitch_rate_err = desired_pitch_rate - pitch_rate;
-    
-    const auto elevator_pitching = pitch_rate_err*_K4;
+    elevator_control += (target_pitch_rate - pitch_rate)*_K2;
 
     const auto alpha_above_max = _max_alpha - AoA;
     const auto alpha_below_min = _min_alpha - AoA; // min is always 0, never have negative lift
     const auto elevator_alpha = (std::min(alpha_above_max, 0.0) + std::max(alpha_below_min, 0.0))*_alpha_k;
 
-    const auto elevator_deflection = elevator_pitching + elevator_alpha;
+    const auto elevator_deflection = elevator_control + elevator_alpha;
     
     #ifdef DEBUG
-        double pitch = asin(2*(_state.body.orientation.x()*_state.body.orientation.z() 
-                 + _state.body.orientation.y()*_state.body.orientation.w()))*57.295779513082;
         std::cout << "current pitch: " << pitch << " ";
-        std::cout << "current climb right: " << current_climb_rate << " ";
-        std::cout << "desired: " << desired_climb_rate << " ";
+        std::cout << "current climb right: " << altitude_rate << " ";
+        std::cout << "elevator_alpha: " << elevator_alpha << " ";
         std::cout << "elevator: " << elevator_deflection << " ";
     #endif
 
@@ -202,14 +197,16 @@ void RamjetVehicle::update_control(double time)
     const auto airspeed_rate = (airspeed - _old_airspeed)*inv_dt;
     const auto mass = _state.body.mass;
     const auto AoA = _aero.alpha_angle;
-    const auto pitch_rate = _state.body.angular_velocity.y();
+    const auto pitch = asin(_body_frame_ecef.row(0).dot(_ENU2ECEF.col(2)));
+    const auto pitch_rate = (pitch - _old_pitch)*inv_dt;
 
     _old_time = time;
     _old_airspeed = airspeed;
     _old_altitude = altitude;
+    _old_pitch = pitch;
 
     const auto elevator = _control.update_elevator(dt, altitude, altitude_rate, airspeed, 
-        airspeed_rate, AoA, pitch_rate);
+        airspeed_rate, AoA, pitch, pitch_rate);
     _aerodynamics.set_elevator(elevator);
 }
 

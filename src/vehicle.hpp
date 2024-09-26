@@ -23,17 +23,17 @@ class InertialProperties
 
     std::array<double, 4> _MOI;
 
-    const double _mass_empty;
-
-    const std::array<double, 4> _MOI_empty;
-
-    const Eigen::Vector3d _COM_empty;
-
     std::array<double, 4> _MOI_delta;
 
     Eigen::Vector3d _COM_delta;
 
 public:
+
+    const double mass_empty;
+
+    const std::array<double, 4> MOI_empty;
+
+    const Eigen::Vector3d COM_empty;
 
     static constexpr double IXX = 0;
     static constexpr double IYY = 1;
@@ -240,7 +240,7 @@ class AltitudeControl
 
     const double _min_altitude_rate;
 
-    double _target_altitude_rate = 0.0;
+    double _target_pitch_delta = 0.0;
 
 public:
 
@@ -256,7 +256,7 @@ public:
     AltitudeControl(AltitudeControl&& other) noexcept = default;
 
     double update_elevator(double time, double altitude, double altitude_rate,
-        double airspeed, double acceleration, double AoA, double pitch_rate);
+        double airspeed, double acceleration, double AoA, double pitch, double pitch_rate);
 
 };
 
@@ -273,6 +273,8 @@ class RamjetVehicle final : public virtual VehicleBase
     double _old_altitude = 0.0;
 
     double _old_airspeed = 0.0;
+
+    double _old_pitch = 0.0;
 
 public:
 
