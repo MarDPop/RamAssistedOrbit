@@ -151,25 +151,30 @@ RamjetVehicle::RamjetVehicle(const InertialProperties& I, const Atmosphere& atmo
 {}
 
 double AltitudeControl::update_elevator(double dt, double altitude, double altitude_rate,
-    double airspeed, double acceleration, double AoA, double pitch, double pitch_rate)
+    double airspeed, double acceleration, double AoA, double pitch, double pitch_rate, double dynamic_pressure)
 {
-    constexpr double SLIGHT_CLIMB = 2.0;
-    double altitude_rate_err = SLIGHT_CLIMB - altitude_rate;
-    double elevator_control = altitude_rate_err*_K3;
     double target_pitch_rate = 0.0;
-    if(altitude < _cruise_altitude)
+    if(!_cruising)
     {
-        double acceleration_desired = altitude_rate*_K4;
+        double acceleration_desired = altitude_rate*_K4 + altitude*_K5;
         double acceleration_err = acceleration_desired - acceleration;
         target_pitch_rate = -acceleration_err*_K1;
-        elevator_control = std::max(elevator_control, 0.0);
+
+        //_cruising = altitude > _cruise_altitude || altitude_rate < _climb_min_rate;
     } 
+    else 
+    {
+        double altitude_rate_err = _cruise_climb_rate - altitude_rate;
+        target_pitch_rate = altitude_rate_err*_K3;
+    }
 
-    elevator_control += (target_pitch_rate - pitch_rate)*_K2;
+    target_pitch_rate = std::clamp(target_pitch_rate, _max_pitch_down, _max_pitch_up);
 
-    const auto alpha_above_max = _max_alpha - AoA;
-    const auto alpha_below_min = _min_alpha - AoA; // min is always 0, never have negative lift
-    const auto elevator_alpha = (std::min(alpha_above_max, 0.0) + std::max(alpha_below_min, 0.0))*_alpha_k;
+    double elevator_control = (target_pitch_rate - pitch_rate)*_K2/dynamic_pressure;
+
+    const auto alpha_above_max = std::min(_max_alpha - AoA, 0.0);
+    const auto alpha_below_min = std::max(_min_alpha - AoA, 0.0); 
+    const auto elevator_alpha = (alpha_below_min*alpha_below_min - alpha_above_max*alpha_above_max)*_alpha_k;
 
     const auto elevator_deflection = elevator_control + elevator_alpha;
     
@@ -198,15 +203,14 @@ void RamjetVehicle::update_control(double time)
     const auto mass = _state.body.mass;
     const auto AoA = _aero.alpha_angle;
     const auto pitch = asin(_body_frame_ecef.row(0).dot(_ENU2ECEF.col(2)));
-    const auto pitch_rate = (pitch - _old_pitch)*inv_dt;
+    const auto pitch_rate = _state.body.angular_velocity.y();
 
     _old_time = time;
     _old_airspeed = airspeed;
     _old_altitude = altitude;
-    _old_pitch = pitch;
 
     const auto elevator = _control.update_elevator(dt, altitude, altitude_rate, airspeed, 
-        airspeed_rate, AoA, pitch, pitch_rate);
+        airspeed_rate, AoA, pitch, pitch_rate, _aero.dynamic_pressure);
     _aerodynamics.set_elevator(elevator);
 }
 

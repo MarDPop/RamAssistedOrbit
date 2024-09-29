@@ -27,13 +27,18 @@
             "MACH" : 3.0
         },
         "CONTROL" : {
-            "K1" : 0.04,
-            "K2" : 0.8,
-            "K3" : 0.01,
-            "K4" : 0.0004,
-            "MAX_ALPHA" : 0.06,
+            "K1" : 0.05,
+            "K2" : 10e4,
+            "K3" : 0.008,
+            "K4" : 0.01,
+            "K5" : 0.000,
+            "MAX_ALPHA" : 0.02,
             "MIN_ALPHA" : 0.0,
-            "ALPHA_K" : 0.05
+            "ALPHA_K" : 0.5,
+            "MAX_PITCH_DOWN" : -0.1,
+            "MAX_PITCH_UP" : 0.1,
+            "CRUISE_CLIMB_RATE" : 1.0,
+            "MIN_CLIMB_RATE_CLIMBING" : 15.0
         },
         "AERODYNAMICS" : {
             "CD0" : 0.03,
@@ -45,15 +50,15 @@
             "DCD_DEL" : 0.0001,
             "DCM_DEL" : 0.005,
             "STALL_ANGLE" : 0.12,
-            "MAX_EL_DEFLECTION" : 0.15,
+            "MAX_EL_DEFLECTION" : 0.2,
             "AREF" : 1.0,
             "LREF" : 5.0
         }
     },
     "ODE" : {
-        "MIN_STEP_SIZE" : 5e-3,
+        "MIN_STEP_SIZE" : 3e-3,
         "MAX_STEP_SIZE" : 5e-2,
-        "MAX_RUNTIME" : 800,
+        "MAX_RUNTIME" : 1500,
         "TYPE" : 0,
         "RECORDING_INTERVAL" : 0.1
     }

@@ -10,6 +10,6 @@
 **** Running Vehicle Simulation ****
 **** Simulation Finished ****
 ODE simulation ran out of time
-entries: 8001
-Orbital El: 3.22362e+06 0.984371 0 0 0 3.14027 
+entries: 15001
+Orbital El: 3.25797e+06 0.965791 0 0 0 3.14154 
 Writing output...

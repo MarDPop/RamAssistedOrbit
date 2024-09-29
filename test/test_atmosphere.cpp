@@ -34,3 +34,11 @@ TEST_CASE("Area Ratio")
     mach = Air::subsonic_mach_area_ratio(area_ratio, 1.4);
     REQUIRE(mach == doctest::Approx(mach_test).epsilon(1e-4));
 }
+
+TEST_CASE("STD_ATMOSPHERE_TABLE")
+{
+    AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
+    Air air;
+    
+
+}

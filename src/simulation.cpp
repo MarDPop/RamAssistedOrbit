@@ -118,6 +118,7 @@ SimulationResult run(json& config)
 
     // Ramjet Stage
     AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
+    atm.saveAsTable("debug_atmosphere.dat", 100);
 
     constexpr double min_empty = 0.01;
     InertialProperties I(startMass*min_empty, 
@@ -176,11 +177,16 @@ SimulationResult run(json& config)
         config["RAMJET"]["CONTROL"]["K2"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["K3"].template get<double>(),
         config["RAMJET"]["CONTROL"]["K4"].template get<double>(),
+        config["RAMJET"]["CONTROL"]["K5"].template get<double>(),
         config["RAMJET"]["CONTROL"]["MAX_ALPHA"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["MIN_ALPHA"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["ALPHA_K"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(),
-        config["RAMJET"]["CRUISE"]["MACH"].template get<double>());
+        config["RAMJET"]["CONTROL"]["MAX_PITCH_UP"].template get<double>(),
+        config["RAMJET"]["CONTROL"]["MAX_PITCH_DOWN"].template get<double>(),
+        config["RAMJET"]["CONTROL"]["CRUISE_CLIMB_RATE"].template get<double>(),
+        config["RAMJET"]["CONTROL"]["MIN_CLIMB_RATE_CLIMBING"].template get<double>()
+        );
 
     RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, control);
 

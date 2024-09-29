@@ -298,7 +298,7 @@ struct Atmosphere
      * @param R0
      * @return
      */
-    static double geometric2geopotential(double z, const double R0 = 6371)
+    static double geometric2geopotential(double z, const double R0 = 6371000.0)
     {
         return R0 * z / (R0 + z);
     }
@@ -309,7 +309,7 @@ struct Atmosphere
      * @param R0
      * @return
      */
-    static double geopotential2geometric(double H, const double R0 = 6371)
+    static double geopotential2geometric(double H, const double R0 = 6371000.0)
     {
         return R0 * H / (R0 - H);
     }
@@ -338,7 +338,7 @@ struct Atmosphere
      */
     static double pressure_ratio_linearthermal(double h, double href, double tref, double lapseRate, double R, double g0 = 9.806)
     {
-        return pow(1.0 - lapseRate*(h - href)/tref,g0/(lapseRate*R));
+        return pow(1.0 + lapseRate*(h - href)/tref, -g0/(lapseRate*R));
     }
 
     virtual void set_air(double height, Air& air) const = 0;
@@ -416,6 +416,8 @@ public:
     {
         return _height_increment;
     }
+
+    void saveAsTable(std::string filename, double height_increment) const;
 
     void set_air(double height, Air& air) const override;
 };

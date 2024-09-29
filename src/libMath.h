@@ -148,7 +148,6 @@ constexpr Float exp_frac_approx(Float x)
 	return 1.0 + (x + x)/(2.0 - x + x2/(6.0 + x2*0.1));
 }
 
-
 namespace poly 
 {
 	template<typename Float>

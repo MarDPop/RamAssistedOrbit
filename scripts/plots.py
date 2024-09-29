@@ -52,8 +52,10 @@ mach = []
 flightAngle = []
 gForce = []
 altitude = []
+altitude_rate = []
 elevator = []
 thrust = []
+isp = []
 nEntries = 0
 with open("../output/result.dat","r") as resultfile:
     lines = resultfile.readlines()
@@ -69,11 +71,13 @@ with open("../output/result.dat","r") as resultfile:
     flightAngle = np.zeros((nEntries, 1))
     gForce = np.zeros((nEntries, 1))
     altitude = np.zeros((nEntries, 1))
+    altitude_rate = np.zeros((nEntries,1))
     elevator = np.zeros((nEntries, 1))
     thrust = np.zeros((nEntries, 1))
     AoA = np.zeros((nEntries,1))
     speed = np.zeros((nEntries,1))
     pitch = np.zeros((nEntries,1))
+    isp = np.zeros((nEntries,1))
 
     for i in range(nEntries):
         if "nan" in lines[i]:
@@ -106,43 +110,56 @@ with open("../output/result.dat","r") as resultfile:
         velz = np.dot(vel[i,:],up)
         angleOfAttack = p - np.arcsin(velz/speed[i])
         AoA[i] = angleOfAttack*rad2deg
+        
+        if(i > 0):
+            dt = (times[i] - times[i - 1])
+            if abs(dt) < 1e-6:
+                continue
+            else:
+                altitude_rate[i] = (altitude[i] - altitude[i - 1])/dt
 
+                isp[i] = thrust[i]*dt/((mass[i - 1] - mass[i] + 1e-9)*9.806)
     
 pitch[0] = 0
         
-fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
-ax1.plot(times,altitude, label='Altitude')
-ax1.set_ylabel('meters')
-ax11 = ax1.twinx()
+fig, axs = plt.subplots(3, 2, sharex=True)
+axs[0,0].plot(times,altitude, label='Altitude')
+axs[0,0].set_ylabel('meters')
+ax11 = axs[0,0].twinx()
 ax11.plot(times, elevator, color = 'tab:red', label='elevator deflection')
 ax11.set_ylabel('Degrees')
-ax1.set_title("Altitude")
-ax1.grid()
-ax1.legend();
+axs[0,0].set_title("Altitude")
+axs[0,0].grid()
+axs[0,0].legend();
 ax11.legend();
 
-ax2.plot(times, mach)
-ax22 = ax2.twinx()
-ax22.plot(times, speed, color = 'tab:red')
-ax22.set_ylabel('Speed')
-ax2.set_title("Mach")
-ax2.grid()
-ax2.legend()
+axs[1,0].plot(times, mach)
+ax22 = axs[1,0].twinx()
+ax22.plot(times, altitude_rate, color = 'tab:red', label='alt rate')
+ax22.set_ylabel('Altitude Rate')
+axs[1,0].set_title("Mach")
+axs[1,0].grid()
+axs[1,0].legend()
 
-ax3.plot(times, mass)
-ax33 = ax3.twinx()
+axs[2,0].plot(times, mass)
+ax33 = axs[2,0].twinx()
 ax33.plot(times, thrust, color = 'tab:red', label='thrust')
-ax3.set_title("Mass")
-ax3.grid()
+axs[2,0].set_title("Mass")
+axs[2,0].grid()
 ax33.legend()
 
-ax4.plot(times, pitch, label='pitch')
-ax4.set_title("Pitch")
-ax44 = ax4.twinx()
+axs[0,1].plot(times, pitch, label='pitch')
+axs[0,1].set_title("Pitch")
+ax44 = axs[0,1].twinx()
 ax44.plot(times, AoA, color = 'tab:red', label='AoA')
-ax4.grid()
-ax4.legend()
+axs[0,1].grid()
+axs[0,1].legend()
 ax44.legend()
+
+axs[1,1].plot(times, isp, label='isp')
+axs[1,1].set_title('isp')
+axs[1,1].grid()
+axs[1,1].legend()
 
 ax3d = plt.figure().add_subplot(projection='3d')
 

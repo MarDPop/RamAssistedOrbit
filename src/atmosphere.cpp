@@ -325,6 +325,7 @@ AtmosphereLinearTable AtmosphereLinearTable::create(STD_ATMOSPHERES, double heig
     table.reserve(static_cast<size_t>(SPACE_LINE/height_increment) + 1);
 
     double h = 0;
+    double h_geo_potential = 0;
     double tref = ground_temperature;
     double pref = ground_pressure;
     int atmIdx = 0;
@@ -336,20 +337,22 @@ AtmosphereLinearTable AtmosphereLinearTable::create(STD_ATMOSPHERES, double heig
     {
         Air air;
 
-        if(h < 32000)
+        h_geo_potential = geometric2geopotential(h);
+
+        if(h_geo_potential < US_1976_HEIGHTS[4])
         {
             air.specific_gas_constant = Air::GAS_CONSTANT / Air::DRY_AIR_MW;
             air.gamma = 1.4;
         }
         else
         {
-            double factor = (h - 32000)/SPACE_LINE;
+            double factor = (h_geo_potential - US_1976_HEIGHTS[4])/SPACE_LINE;
             factor *= factor;
             air.specific_gas_constant = Air::GAS_CONSTANT / (Air::DRY_AIR_MW*(1 - factor) + factor*0.021);
             air.gamma = 1.4*(1 - factor) + factor*1.63;
         }
 
-        if(atmIdx < 10 && h > US_1976_HEIGHTS[atmIdx + 1])
+        if(atmIdx < 10 && h_geo_potential > US_1976_HEIGHTS[atmIdx + 1])
         {
             avg_gas_const *= 1.0/layer_count;
             avg_gamma *= 1.0/layer_count;
@@ -368,16 +371,17 @@ AtmosphereLinearTable AtmosphereLinearTable::create(STD_ATMOSPHERES, double heig
 
         avg_gas_const += air.specific_gas_constant;
         avg_gamma += air.gamma;
+        layer_count++;
 
         if(isothermal)
         {
             air.temperature = tref;
-            air.pressure = pref*Atmosphere::pressure_ratio_isothermal(h, US_1976_HEIGHTS[atmIdx], tref, avg_gas_const/layer_count, g0);
+            air.pressure = pref*Atmosphere::pressure_ratio_isothermal(h_geo_potential, US_1976_HEIGHTS[atmIdx], tref, avg_gas_const/layer_count, g0);
         }
         else
         {
-            air.temperature = tref + (h - US_1976_HEIGHTS[atmIdx])*US_1976_LAPSE_RATE[atmIdx];
-            air.pressure = pref*Atmosphere::pressure_ratio_linearthermal(h, US_1976_HEIGHTS[atmIdx], tref, US_1976_LAPSE_RATE[atmIdx], avg_gas_const/layer_count, g0);
+            air.temperature = tref + (h_geo_potential - US_1976_HEIGHTS[atmIdx])*US_1976_LAPSE_RATE[atmIdx];
+            air.pressure = pref*Atmosphere::pressure_ratio_linearthermal(h_geo_potential, US_1976_HEIGHTS[atmIdx], tref, US_1976_LAPSE_RATE[atmIdx], avg_gas_const/layer_count, g0);
         }
         air.inv_sound_speed = 1.0/sqrt(air.gamma*air.specific_gas_constant*air.temperature);
         air.density = air.pressure/(air.specific_gas_constant*air.temperature);
@@ -385,7 +389,7 @@ AtmosphereLinearTable AtmosphereLinearTable::create(STD_ATMOSPHERES, double heig
         table.push_back(air);
 
         h += height_increment;
-        layer_count++;
+        
     }
 
     return AtmosphereLinearTable(table, 0.0, height_increment);
@@ -404,7 +408,7 @@ AtmosphereLinearTable AtmosphereLinearTable::create(const std::string& filename)
     {
         throw std::runtime_error("Invalid file format: " + filename);
     }
-
+    // skipped header
     std::vector<Air> table;
     while(std::getline(file, line))
     {
@@ -414,10 +418,32 @@ AtmosphereLinearTable AtmosphereLinearTable::create(const std::string& filename)
             break;
         }
         Air air;
+        double h = std::stod(values[0]);
+        double temperature = std::stod(values[1]);
     }
     // TODO
 
     return AtmosphereLinearTable(table, 1.0, 1.0);
+}
+
+void AtmosphereLinearTable::saveAsTable(std::string filename, double height_increment) const
+{
+    std::ofstream file(filename);
+    if(!file.is_open())
+    {
+        std::cerr << "Error: Unable to open file: " << filename << std::endl;
+        return;
+    }
+    double h = _min_height;
+    Air air;
+    while(h < _max_height)
+    {
+        this->set_air(h, air);
+        file << h << " " << air.temperature << " " << air.pressure << " " 
+            << air.density << " " << 1.0/air.inv_sound_speed << " " 
+            << air.dynamic_viscosity << " " << AtmosphereLinearTable::geometric2geopotential(h) << "\n";
+        h += height_increment;
+    }
 }
 
 void AtmosphereLinearTable::set_air(double height, Air& air) const
