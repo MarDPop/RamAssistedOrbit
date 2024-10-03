@@ -97,7 +97,7 @@ void VehicleBase::update_environment()
     // Geodetic Frames
     Earth::getGeodeticFrame(_state.body.position, _lla, _ENU2ECEF.data());
     // Get Air 
-    _atmosphere.set_air(_lla.altitude, _air);
+    _atmosphere->set_air(_lla.altitude, _air);
     // Get the aero quantities used by aerodynamics
     _aero.update(_air, _state.body.velocity, _body_frame_ecef);
 }
@@ -143,75 +143,82 @@ void BasicVehicle::update_body_forces(double)
 RamjetVehicle::RamjetVehicle(const InertialProperties& I, const Atmosphere& atmosphere, 
     std::unique_ptr<Ramjet> ramjet, 
     const AerodynamicBasicCoefficients::Coef& coef,
-    const AltitudeControl& control) : 
+    const AltitudeRateGuidance& guidance,
+    const PitchControl& control) : 
         VehicleBase(I,atmosphere),
         _ramjet(std::move(ramjet)),
         _aerodynamics(coef),
+        _guidance(guidance),
         _control(control)
 {}
 
-double AltitudeControl::update_elevator(double dt, double altitude, double altitude_rate,
-    double airspeed, double acceleration, double AoA, double pitch, double pitch_rate, double dynamic_pressure)
+double PitchControl::get_elevator(double pitch, double pitch_rate, double dynamic_pressure) const
 {
-    double target_pitch_rate = 0.0;
-    if(!_cruising)
-    {
-        double acceleration_desired = altitude_rate*_K4 + altitude*_K5;
-        double acceleration_err = acceleration_desired - acceleration;
-        target_pitch_rate = -acceleration_err*_K1;
-
-        //_cruising = altitude > _cruise_altitude || altitude_rate < _climb_min_rate;
-    } 
-    else 
-    {
-        double altitude_rate_err = _cruise_climb_rate - altitude_rate;
-        target_pitch_rate = altitude_rate_err*_K3;
-    }
-
-    target_pitch_rate = std::clamp(target_pitch_rate, _max_pitch_down, _max_pitch_up);
-
-    double elevator_control = (target_pitch_rate - pitch_rate)*_K2/dynamic_pressure;
-
-    const auto alpha_above_max = std::min(_max_alpha - AoA, 0.0);
-    const auto alpha_below_min = std::max(_min_alpha - AoA, 0.0); 
-    const auto elevator_alpha = (alpha_below_min*alpha_below_min - alpha_above_max*alpha_above_max)*_alpha_k;
-
-    const auto elevator_deflection = elevator_control + elevator_alpha;
-    
-    #ifdef DEBUG
-        std::cout << "current pitch: " << pitch << " ";
-        std::cout << "current climb right: " << altitude_rate << " ";
-        std::cout << "elevator_alpha: " << elevator_alpha << " ";
-        std::cout << "elevator: " << elevator_deflection << " ";
-    #endif
-
-    return elevator_deflection;
+    return ((_pitch_commanded - pitch) - D*pitch_rate)*K/dynamic_pressure;
 }
 
-void RamjetVehicle::update_control(double time)
+double PitchGuidance::opt_alpha(double CL_alpha, double K, double CD_0)
+{
+    return sqrt(CD_0/K)/CL_alpha;
+}
+
+void AltitudeRateGuidance::init(const VehicleBase& vehicle, double time)
+{
+    const auto& aero = vehicle.get_aero();
+    const auto altitude = vehicle.get_lla().altitude;
+
+    _pitch = asin(vehicle.get_body_frame_ecef().row(0).dot(vehicle.get_ENU2ECEF().col(2)));
+    _pitch_rate = vehicle.get_state().body.angular_velocity.y();
+
+    _old_time = time;
+    _old_airspeed = aero.airspeed;
+    _old_altitude = altitude;
+
+    _desired_pitch = _pitch;
+}
+
+void AltitudeRateGuidance::update_climb_navigation(const VehicleBase& vehicle, double time)
 {
     const auto dt = time - _old_time;
     if(fabs(dt) < 1e-3) 
     {
         return;
     }
+
+    const auto& aero = vehicle.get_aero();
+    const auto altitude = vehicle.get_lla().altitude;
+
     const auto inv_dt = 1.0/dt;
-    const auto altitude = _lla.altitude;
-    const auto airspeed = _aero.airspeed;
+
     const auto altitude_rate = (altitude - _old_altitude)*inv_dt;
-    const auto airspeed_rate = (airspeed - _old_airspeed)*inv_dt;
-    const auto mass = _state.body.mass;
-    const auto AoA = _aero.alpha_angle;
-    const auto pitch = asin(_body_frame_ecef.row(0).dot(_ENU2ECEF.col(2)));
-    const auto pitch_rate = _state.body.angular_velocity.y();
+    const auto acceleration = (aero.airspeed - _old_airspeed)*inv_dt;
+    _pitch = asin(vehicle.get_body_frame_ecef().row(0).dot(vehicle.get_ENU2ECEF().col(2)));
+    _pitch_rate = vehicle.get_state().body.angular_velocity.y();
 
     _old_time = time;
-    _old_airspeed = airspeed;
+    _old_airspeed = aero.airspeed;
     _old_altitude = altitude;
 
-    const auto elevator = _control.update_elevator(dt, altitude, altitude_rate, airspeed, 
-        airspeed_rate, AoA, pitch, pitch_rate, _aero.dynamic_pressure);
-    _aerodynamics.set_elevator(elevator);
+    double alpha_err = _opt_alpha - aero.alpha_angle;
+    double acceleration_desired = altitude*_altitude_K - alpha_err*_alpha_accel_K;
+    double acceleration_err = acceleration_desired - acceleration;
+    _desired_pitch = _pitch - acceleration_err*_accel_K;
+    
+    const auto alpha_above_max = std::min(_max_alpha - aero.alpha_angle, 0.0);
+    const auto alpha_below_min = std::max(_min_alpha - aero.alpha_angle, 0.0); 
+    
+    _desired_pitch += (alpha_below_min - alpha_above_max);
+
+    _desired_pitch = std::clamp(_desired_pitch, _pitch - _max_pitch_offset, _pitch + _max_pitch_offset);
+    _desired_pitch = std::max(_desired_pitch, 0.0);
+}
+
+void RamjetVehicle::update_control(double time)
+{
+    _guidance.update_climb_navigation(*this, time);
+    _control.set_pitch_commanded(_guidance.get_desired_pitch());
+    _aerodynamics.set_elevator(_control.get_elevator(_guidance.get_pitch(),
+        _guidance.get_pitch_rate(), _aero.dynamic_pressure));
 }
 
 void RamjetVehicle::update_body_forces(double time)

@@ -172,25 +172,26 @@ SimulationResult run(json& config)
         ramjet_tmp.get_nozzle_efficiency(),
         ramjet_tmp.get_dry_mass(),
         ramjet_tmp.get_max_mass_rate());
+
+    PitchControl control(config["RAMJET"]["CONTROL"]["PITCH_K"].template get<double>(),
+        config["RAMJET"]["CONTROL"]["PITCH_D"].template get<double>());
     
-    AltitudeControl control(config["RAMJET"]["CONTROL"]["K1"].template get<double>(), 
+    AltitudeRateGuidance guidance(config["RAMJET"]["CONTROL"]["K1"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["K2"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["K3"].template get<double>(),
-        config["RAMJET"]["CONTROL"]["K4"].template get<double>(),
-        config["RAMJET"]["CONTROL"]["K5"].template get<double>(),
         config["RAMJET"]["CONTROL"]["MAX_ALPHA"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["MIN_ALPHA"].template get<double>(), 
+        PitchGuidance::opt_alpha(coef.CL_alpha, coef.K, coef.CD0),
         config["RAMJET"]["CONTROL"]["ALPHA_K"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(),
-        config["RAMJET"]["CONTROL"]["MAX_PITCH_UP"].template get<double>(),
-        config["RAMJET"]["CONTROL"]["MAX_PITCH_DOWN"].template get<double>(),
+        config["RAMJET"]["CONTROL"]["MAX_PITCH_OFFSET"].template get<double>(),
         config["RAMJET"]["CONTROL"]["CRUISE_CLIMB_RATE"].template get<double>(),
         config["RAMJET"]["CONTROL"]["MIN_CLIMB_RATE_CLIMBING"].template get<double>()
         );
 
-    RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, control);
+    RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, guidance, control);
 
-    rVehicle.initNav(0.0, 400.0, 600.0);
+    rVehicle.initNav();
 
     //ODE_HUEN_EULER<RamjetVehicle> ode(rVehicle);
     int odeType = config["ODE"]["TYPE"].template get<int>();

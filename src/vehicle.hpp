@@ -85,12 +85,12 @@ protected:
 
     AeroQuantities _aero{};
 
-    const Atmosphere& _atmosphere;
+    const Atmosphere* _atmosphere;
 
 public:
 
     VehicleBase(const InertialProperties& I, const Atmosphere& atmosphere) : 
-        _inertia(I), _atmosphere(atmosphere) {}
+        _inertia(I), _atmosphere(&atmosphere) {}
 
     virtual ~VehicleBase() {}
 
@@ -98,19 +98,14 @@ public:
 
     [[nodiscard]] Eigen::Vector3d acceleration_in_body() const;
 
-    [[nodiscard]] const Air& get_air() const
-    {
-        return _air;
-    }
-
     [[nodiscard]] const AeroQuantities& get_aero() const
     {
         return _aero;
     }
 
-    [[nodiscard]] const Earth::Geodetic& get_lla() const
+    [[nodiscard]] const Air& get_air() const
     {
-        return _lla;
+        return _air;
     }
 
     [[nodiscard]] const Eigen::Vector3d& get_body_force() const
@@ -126,6 +121,21 @@ public:
     [[nodiscard]] const Eigen::Matrix3d& get_body_frame_ecef() const
     {
         return _body_frame_ecef;
+    }
+
+    [[nodiscard]] const Eigen::Matrix3d& get_ENU2ECEF() const
+    {
+        return _ENU2ECEF;
+    }
+    
+    [[nodiscard]] const InertialProperties& get_inertia() const
+    {
+        return _inertia;
+    }
+    
+    [[nodiscard]] const Earth::Geodetic& get_lla() const
+    {
+        return _lla;
     }
 
     [[nodiscard]] double get_mass_rate() const
@@ -144,6 +154,16 @@ public:
     }
 
     void update_environment();
+
+    void set_atmosphere(const Atmosphere* atmosphere)
+    {
+        if(atmosphere == nullptr)
+        {
+            throw std::invalid_argument("Atmosphere cannot be null.");
+            return;
+        }
+        _atmosphere = atmosphere;
+    }
 
     void set_dx(std::array<double, 14>& dx);
 
@@ -212,56 +232,116 @@ public:
     void update_body_forces(double time) override;
 };
 
-class AltitudeControl 
+class PitchGuidance
 {
-    const double _K1;
+protected:
 
-    const double _K2;
+    double _desired_pitch;
 
-    const double _K3;
+public:
 
-    const double _K4;
+    double get_desired_pitch() const
+    {
+        return _desired_pitch;
+    }
+    static double opt_alpha(double CL_alpha, double K, double CD_0);
 
-    const double _K5;
+    void set_desired_pitch(double pitch)
+    {
+        _desired_pitch = pitch;
+    }
+    
+    virtual void update_climb_navigation(const VehicleBase& vehicle, double time){}
+
+};
+
+class PitchControl
+{
+    double _pitch_commanded;
+
+public:
+
+    const double K;
+
+    const double D;
+
+    PitchControl(double K_, double D_) : K(K_), D(D_) {}
+
+    void set_pitch_commanded(double pitch) 
+    {
+        _pitch_commanded = pitch;
+    }
+
+    double get_elevator(double pitch, double pitch_rate, double dynamic_pressure) const;
+};
+
+class AltitudeRateGuidance : public virtual PitchGuidance
+{
+    const double _accel_K;
+
+    const double _alpha_accel_K;
+
+    const double _altitude_K;
 
     const double _max_alpha;
 
     const double _min_alpha;
 
+    const double _opt_alpha;
+
     const double _alpha_k;
 
     const double _cruise_altitude;
-
-    const double _max_pitch_up;
-
-    const double _max_pitch_down;
 
     const double _cruise_climb_rate;
 
     const double _climb_min_rate;
 
+    const double _max_pitch_offset;
+
+    double _pitch = 0.0;
+
+    double _pitch_rate = 0.0;
+
+    double _old_time = 0.0;
+
+    double _old_altitude = 0.0;
+
+    double _old_airspeed = 0.0;
+
     bool _cruising = false;
 
 public:
 
-    AltitudeControl(double K1, double K2, double K3, double K4, double K5,
-        double max_alpha, double min_alpha, double alpha_k,
-        double cruise_altitude, double max_pitch_up = 0.1, double max_pitch_down = -0.1,
-        double cruise_climb_rate = 1.0, double min_altitude_rate = 20.0) : 
-            _K1(K1), _K2(K2), _K3(K3), _K4(K4), _K5(K5), _max_alpha(max_alpha), _min_alpha(min_alpha), _alpha_k(alpha_k),
-            _cruise_altitude(cruise_altitude), _max_pitch_up(max_pitch_up),
-            _max_pitch_down(max_pitch_down), _cruise_climb_rate(cruise_climb_rate), _climb_min_rate(min_altitude_rate) {}
+    AltitudeRateGuidance(double K1, double K2, double K3,
+        double max_alpha, double min_alpha, double opt_alpha, double alpha_k,
+        double cruise_altitude, double max_pitch_offset,
+             double cruise_climb_rate = 1.0, double min_climb_rate = 20.0) : 
+            _accel_K(K1), _alpha_accel_K(K2), _altitude_K(K3), _max_alpha(max_alpha), _min_alpha(min_alpha), _opt_alpha(opt_alpha),
+            _alpha_k(alpha_k), _cruise_altitude(cruise_altitude), _max_pitch_offset(max_pitch_offset), 
+            _cruise_climb_rate(cruise_climb_rate), _climb_min_rate(min_climb_rate) {}
 
-    AltitudeControl(const AltitudeControl& other) = default;
-    AltitudeControl(AltitudeControl&& other) noexcept = default;
+    AltitudeRateGuidance(const AltitudeRateGuidance& other) = default;
+    AltitudeRateGuidance(AltitudeRateGuidance&& other) noexcept = default;
+
+    double get_pitch() const
+    {
+        return _pitch;
+    }
+
+    double get_pitch_rate() const
+    {
+        return _pitch_rate;
+    }
+
+    void init(const VehicleBase& vehicle, double time);
 
     void reset() noexcept 
     {
         _cruising = false;
     }
 
-    double update_elevator(double time, double altitude, double altitude_rate,
-        double airspeed, double acceleration, double AoA, double pitch, double pitch_rate, double dynamic_pressure);
+    void update_climb_navigation(const VehicleBase& vehicle, double time) override;
 
 };
 
@@ -271,13 +351,9 @@ class RamjetVehicle final : public virtual VehicleBase
 
     AerodynamicBasicCoefficients _aerodynamics;
 
-    AltitudeControl _control;
+    AltitudeRateGuidance _guidance;
 
-    double _old_time = 0.0;
-
-    double _old_altitude = 0.0;
-
-    double _old_airspeed = 0.0;
+    PitchControl _control;
 
 public:
 
@@ -286,13 +362,12 @@ public:
     RamjetVehicle(const InertialProperties& I, const Atmosphere& atmosphere, 
         std::unique_ptr<Ramjet> ramjet, 
         const AerodynamicBasicCoefficients::Coef& coef,
-        const AltitudeControl& control);
+        const AltitudeRateGuidance& guidance,
+        const PitchControl& control);
 
-    void initNav(double time, double altitude, double airspeed)
+    void initNav(double time = 0.0)
     {
-        _old_time = time;
-        _old_altitude = altitude;
-        _old_airspeed = airspeed;
+        _guidance.init(*this, time);
     }
 
     void update_control(double time) override;

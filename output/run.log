@@ -9,7 +9,8 @@
 **** Setup Vehicle Simulation ****
 **** Running Vehicle Simulation ****
 **** Simulation Finished ****
-ODE simulation ran out of time
-entries: 15001
-Orbital El: 3.25797e+06 0.965791 0 0 0 3.14154 
+ODE simulation stopped prematurely
+Dynamics invalid
+entries: 11220
+Orbital El: 3.31934e+06 0.926371 0 0 0 3.14159 
 Writing output...

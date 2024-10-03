@@ -27,18 +27,17 @@
             "MACH" : 3.0
         },
         "CONTROL" : {
-            "K1" : 0.05,
-            "K2" : 10e4,
-            "K3" : 0.008,
-            "K4" : 0.01,
-            "K5" : 0.000,
+            "K1" : 0.08,
+            "K2" : 1.5,
+            "K3" : 0.0001,
             "MAX_ALPHA" : 0.02,
             "MIN_ALPHA" : 0.0,
             "ALPHA_K" : 0.5,
-            "MAX_PITCH_DOWN" : -0.1,
-            "MAX_PITCH_UP" : 0.1,
+            "MAX_PITCH_OFFSET" : 0.1,
             "CRUISE_CLIMB_RATE" : 1.0,
-            "MIN_CLIMB_RATE_CLIMBING" : 15.0
+            "MIN_CLIMB_RATE_CLIMBING" : 15.0,
+            "PITCH_K" : 2e5,
+            "PITCH_D" : 0.8
         },
         "AERODYNAMICS" : {
             "CD0" : 0.03,
