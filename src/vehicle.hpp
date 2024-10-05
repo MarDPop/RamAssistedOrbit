@@ -87,6 +87,8 @@ protected:
 
     const Atmosphere* _atmosphere;
 
+    
+
 public:
 
     VehicleBase(const InertialProperties& I, const Atmosphere& atmosphere) : 
@@ -155,6 +157,9 @@ public:
 
     void update_environment();
 
+    static void set_acceleration(const Eigen::Vector3d& body_force, const Eigen::Matrix3d& orientation, double mass, 
+        const Eigen::Vector3d& position, const Eigen::Vector3d& velocity, double* acc);
+
     void set_atmosphere(const Atmosphere* atmosphere)
     {
         if(atmosphere == nullptr)
@@ -165,7 +170,9 @@ public:
         _atmosphere = atmosphere;
     }
 
-    void set_dx(std::array<double, 14>& dx);
+    void set_dx(std::array<double, 14>& dx) const;
+    
+    void set_state(const State_6DOF& state);
 
     void update(double time);
 
@@ -246,6 +253,10 @@ public:
     }
     static double opt_alpha(double CL_alpha, double K, double CD_0);
 
+    static double opt_dynamic_pressure_factor(double CL_alpha, double A, double K, double CD_0);
+
+    static double opt_wing_loading(double K, double CD_0, double dynamic_pressure);
+
     void set_desired_pitch(double pitch)
     {
         _desired_pitch = pitch;
@@ -289,6 +300,8 @@ class AltitudeRateGuidance : public virtual PitchGuidance
 
     const double _opt_alpha;
 
+    const double _opt_dynamic_pressure_factor;
+
     const double _alpha_k;
 
     const double _cruise_altitude;
@@ -314,10 +327,11 @@ class AltitudeRateGuidance : public virtual PitchGuidance
 public:
 
     AltitudeRateGuidance(double K1, double K2, double K3,
-        double max_alpha, double min_alpha, double opt_alpha, double alpha_k,
-        double cruise_altitude, double max_pitch_offset,
+        double max_alpha, double min_alpha, double opt_alpha, double opt_dynamic_pressure_factor, double alpha_k,
+        double cruise_altitude, double max_pitch_offset, 
              double cruise_climb_rate = 1.0, double min_climb_rate = 20.0) : 
-            _accel_K(K1), _alpha_accel_K(K2), _altitude_K(K3), _max_alpha(max_alpha), _min_alpha(min_alpha), _opt_alpha(opt_alpha),
+            _accel_K(K1), _alpha_accel_K(K2), _altitude_K(K3), _max_alpha(max_alpha), _min_alpha(min_alpha), 
+            _opt_alpha(opt_alpha), _opt_dynamic_pressure_factor(opt_dynamic_pressure_factor),
             _alpha_k(alpha_k), _cruise_altitude(cruise_altitude), _max_pitch_offset(max_pitch_offset), 
             _cruise_climb_rate(cruise_climb_rate), _climb_min_rate(min_climb_rate) {}
 
@@ -364,6 +378,26 @@ public:
         const AerodynamicBasicCoefficients::Coef& coef,
         const AltitudeRateGuidance& guidance,
         const PitchControl& control);
+
+    const AerodynamicBasicCoefficients& get_aerodynamics() const
+    {
+        return _aerodynamics;
+    }
+
+    const PitchControl& get_control() const
+    {
+        return _control;
+    }
+
+    const AltitudeRateGuidance& get_guidance() const
+    {
+        return _guidance;
+    }
+    
+    const Ramjet& get_ramjet() const 
+    {
+        return *_ramjet;
+    }
 
     void initNav(double time = 0.0)
     {

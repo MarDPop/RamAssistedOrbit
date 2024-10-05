@@ -58,7 +58,7 @@ Eigen::Vector3d VehicleBase::acceleration_in_body() const
     return angular_accleration;
 }
 
-void set_acceleration(const Eigen::Vector3d& body_force, const Eigen::Matrix3d& orientation, double mass, 
+void VehicleBase::set_acceleration(const Eigen::Vector3d& body_force, const Eigen::Matrix3d& orientation, double mass, 
     const Eigen::Vector3d& position, const Eigen::Vector3d& velocity, double* acc)
 {
     const Eigen::Vector3d accel = orientation.transpose()*(body_force/mass);
@@ -70,7 +70,7 @@ void set_acceleration(const Eigen::Vector3d& body_force, const Eigen::Matrix3d& 
     acc[2] = accel[2] + gravity[2];
 }
 
-void VehicleBase::set_dx(std::array<double, 14>& dx)
+void VehicleBase::set_dx(std::array<double, 14>& dx) const
 {
     //Eigen::Vector3d x = _body_frame_ecef.row(0);
     memcpy(&dx[0], _state.body.velocity.data(), 3*sizeof(double));
@@ -162,6 +162,19 @@ double PitchGuidance::opt_alpha(double CL_alpha, double K, double CD_0)
     return sqrt(CD_0/K)/CL_alpha;
 }
 
+double PitchGuidance::opt_dynamic_pressure_factor(double CL_alpha, double A, double K, double CD_0)
+{
+    double opt_CL = sqrt(CD_0/K);
+    constexpr double g = 9.806;
+    return g/(opt_CL*A);
+}
+
+double PitchGuidance::opt_wing_loading(double K, double CD_0, double dynamic_pressure)
+{
+    double opt_CL = sqrt(CD_0/K);
+    return opt_CL*dynamic_pressure;
+}
+
 void AltitudeRateGuidance::init(const VehicleBase& vehicle, double time)
 {
     const auto& aero = vehicle.get_aero();
@@ -188,10 +201,8 @@ void AltitudeRateGuidance::update_climb_navigation(const VehicleBase& vehicle, d
     const auto& aero = vehicle.get_aero();
     const auto altitude = vehicle.get_lla().altitude;
 
-    const auto inv_dt = 1.0/dt;
-
-    const auto altitude_rate = (altitude - _old_altitude)*inv_dt;
-    const auto acceleration = (aero.airspeed - _old_airspeed)*inv_dt;
+    const auto altitude_rate = (altitude - _old_altitude)/dt;
+    const auto acceleration = (aero.airspeed - _old_airspeed)/dt;
     _pitch = asin(vehicle.get_body_frame_ecef().row(0).dot(vehicle.get_ENU2ECEF().col(2)));
     _pitch_rate = vehicle.get_state().body.angular_velocity.y();
 
@@ -199,15 +210,24 @@ void AltitudeRateGuidance::update_climb_navigation(const VehicleBase& vehicle, d
     _old_airspeed = aero.airspeed;
     _old_altitude = altitude;
 
-    double alpha_err = _opt_alpha - aero.alpha_angle;
-    double acceleration_desired = altitude*_altitude_K - alpha_err*_alpha_accel_K;
-    double acceleration_err = acceleration_desired - acceleration;
-    _desired_pitch = _pitch - acceleration_err*_accel_K;
-    
-    const auto alpha_above_max = std::min(_max_alpha - aero.alpha_angle, 0.0);
-    const auto alpha_below_min = std::max(_min_alpha - aero.alpha_angle, 0.0); 
-    
-    _desired_pitch += (alpha_below_min - alpha_above_max);
+    if(aero.alpha_angle > _max_alpha)
+    {
+        _desired_pitch = _pitch + (_max_alpha - aero.alpha_angle);
+    } 
+    else if(aero.alpha_angle < _min_alpha)
+    {
+        _desired_pitch = _pitch + (_min_alpha - aero.alpha_angle);
+    }
+    else 
+    {
+        const double goal_dynamic_pressure = vehicle.get_state().body.mass*_opt_dynamic_pressure_factor;
+        const double dynamic_pressure_err = goal_dynamic_pressure - aero.dynamic_pressure;
+        const double alpha_err = _opt_alpha - aero.alpha_angle;
+        
+        const double acceleration_desired = std::max(dynamic_pressure_err*_altitude_K - alpha_err*_alpha_accel_K, 0.0);
+        const double acceleration_err = acceleration_desired - acceleration;
+        _desired_pitch = _pitch - acceleration_err*_accel_K;
+    }
 
     _desired_pitch = std::clamp(_desired_pitch, _pitch - _max_pitch_offset, _pitch + _max_pitch_offset);
     _desired_pitch = std::max(_desired_pitch, 0.0);

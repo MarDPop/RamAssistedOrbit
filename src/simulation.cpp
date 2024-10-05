@@ -112,13 +112,13 @@ SimulationResult run(json& config)
     result.times = track.t;
     result.start_ramjet = track.t.back();
 
-    for(unsigned i = 0; i < track.t.size(); i++) {
+    for(unsigned i = 0; i < track.t.size(); i++) 
+    {
         result.other_data.emplace_back(0);
     }
 
     // Ramjet Stage
     AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
-    atm.saveAsTable("debug_atmosphere.dat", 100);
 
     constexpr double min_empty = 0.01;
     InertialProperties I(startMass*min_empty, 
@@ -144,19 +144,16 @@ SimulationResult run(json& config)
     coef.A_ref = config["RAMJET"]["AERODYNAMICS"]["AREF"].template get<double>();
     coef.L_ref = config["RAMJET"]["AERODYNAMICS"]["LREF"].template get<double>();
 
-    const double cruise_lift2drag = 4*(config["RAMJET"]["CRUISE"]["MACH"].template get<double>() + 3)/
-         config["RAMJET"]["CRUISE"]["MACH"].template get<double>();
-
-    /*
-    auto ramjet = RamjetVariableInletVariableOutlet::create(config["RAMJET"]["THRUST2WEIGHT"].template get<double>(), 
-        config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(), 
-        config["RAMJET"]["CRUISE"]["MACH"].template get<double>(), 
-        config["RAMJET"]["CRUISE"]["MACH"].template get<double>(), cruise_lift2drag, 
-        startMass, 
-        config["RAMJET"]["THRUST_MARGIN"].template get<double>());
-
-    ramjet.stop();
-    */
+    if(coef.A_ref <= 0.0)
+    {
+        double mach = config["RAMJET"]["CRUISE"]["MACH"].template get<double>();
+        double altitude = config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>();
+        Air air;
+        atm.set_air(altitude, air);
+        double speed = mach/air.inv_sound_speed;
+        double q = 0.5*air.density*speed*speed;
+        coef.A_ref = startMass*0.9*GForce::G/PitchGuidance::opt_wing_loading(coef.K, coef.CD0, q);
+    }
 
     double thrust2weight = config["RAMJET"]["THRUST2WEIGHT"].template get<double>();
     double thrust = startMass*thrust2weight*GForce::G;
@@ -182,6 +179,7 @@ SimulationResult run(json& config)
         config["RAMJET"]["CONTROL"]["MAX_ALPHA"].template get<double>(), 
         config["RAMJET"]["CONTROL"]["MIN_ALPHA"].template get<double>(), 
         PitchGuidance::opt_alpha(coef.CL_alpha, coef.K, coef.CD0),
+        PitchGuidance::opt_dynamic_pressure_factor(coef.CL_alpha, coef.A_ref, coef.K, coef.CD0),
         config["RAMJET"]["CONTROL"]["ALPHA_K"].template get<double>(), 
         config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(),
         config["RAMJET"]["CONTROL"]["MAX_PITCH_OFFSET"].template get<double>(),
@@ -190,8 +188,6 @@ SimulationResult run(json& config)
         );
 
     RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, guidance, control);
-
-    rVehicle.initNav();
 
     //ODE_HUEN_EULER<RamjetVehicle> ode(rVehicle);
     int odeType = config["ODE"]["TYPE"].template get<int>();
@@ -224,6 +220,10 @@ SimulationResult run(json& config)
     options.timestep.inv_absolute_error = std::array<double, 14> { 
         1e3, 1e3, 1e3, 1e2, 1e2, 1e2, 1e5, 1e5, 1e5, 1e5, 1e3, 1e3, 1e3, 1e5
     };
+
+    std::array<double, 14> dummy;
+    rVehicle(track_end_state.x, 0, dummy);
+    rVehicle.initNav();
 
     std::cout << "**** Running Vehicle Simulation ****" << std::endl;
     try 
