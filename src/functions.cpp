@@ -104,6 +104,16 @@ void quaternion_orientation_rate(const Eigen::Quaterniond& q,
     q_dot = q*w;
 }
 
+std::vector<double> diff(const std::vector<double>& values)
+{
+    std::vector<double> dvalues(values.size() - 1);
+    for(unsigned i = 1; i < values.size(); i++)
+    {
+        dvalues[i - 1] = 1.0/(values[i] - values[i - 1]);
+    }
+    return dvalues;
+}
+
 // angle Y +/- 90 deg
 void ZY_rotation(double yaw, double pitch, double* rotm)
 {

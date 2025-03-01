@@ -91,7 +91,7 @@ protected:
 
 public:
 
-    VehicleBase(const InertialProperties& I, const Atmosphere& atmosphere) : 
+    VehicleBase(InertialProperties I, const Atmosphere& atmosphere) : 
         _inertia(I), _atmosphere(&atmosphere) {}
 
     virtual ~VehicleBase() {}
@@ -239,11 +239,109 @@ public:
     void update_body_forces(double time) override;
 };
 
+
+
+class ElevatorMotor
+{
+    double _delta_elevator = 0;
+
+    double _elevator_commanded = 0;
+
+    double _elevator_position = 0;
+
+    double _slew_factor = 0;
+
+    double _old_elevator_position = 0;
+
+    double _old_time = 0;
+
+public:
+
+    const double max_slew_rate;
+
+    ElevatorMotor(double max_slew_rate_) : max_slew_rate( max_slew_rate_ ) {}
+
+    double get_elevator_position() const
+    {
+        return _elevator_position;
+    }
+
+    void update(double time);
+
+    void set_elevator_commanded(double elevator, double time);
+
+};
+
+class PitchControl
+{
+    double _pitch_commanded = 0;
+
+public:
+
+    const double K;
+
+    const double D;
+
+    PitchControl(double K_, double D_) : K(K_), D(D_) {}
+
+    void set_pitch_commanded(double pitch) 
+    {
+        _pitch_commanded = pitch;
+    }
+
+    double get_commanded_elevator(double pitch, double pitch_rate, double dynamic_pressure) const;
+};
+
+class SimpleVehicleNavigation 
+{
+    double _acceleration = 0.0;
+
+    double _altitude = 0.0;
+
+    double _altitude_rate = 0.0;
+
+    double _pitch = 0.0;
+
+    double _pitch_rate = 0.0;
+
+    double _old_time = -1e300;
+
+    double _old_altitude = 0.0;
+
+    double _old_airspeed = 0.0;
+    
+public:
+
+    double get_acceleration() const
+    {
+        return _acceleration;
+    }
+
+    double get_altitude_rate() const
+    {
+        return _altitude_rate;
+    }
+
+    double get_pitch() const
+    {
+        return _pitch;
+    }
+
+    double get_pitch_rate() const
+    {
+        return _pitch_rate;
+    }
+
+    void init(const VehicleBase& vehicle, double time);
+
+    void update(const VehicleBase& vehicle, double time);
+};
+
 class PitchGuidance
 {
 protected:
 
-    double _desired_pitch;
+    double _desired_pitch = 0;
 
 public:
 
@@ -262,28 +360,8 @@ public:
         _desired_pitch = pitch;
     }
     
-    virtual void update_climb_navigation(const VehicleBase& vehicle, double time){}
+    virtual void update(const SimpleVehicleNavigation& navigation, const VehicleBase& vehicle, double time){}
 
-};
-
-class PitchControl
-{
-    double _pitch_commanded;
-
-public:
-
-    const double K;
-
-    const double D;
-
-    PitchControl(double K_, double D_) : K(K_), D(D_) {}
-
-    void set_pitch_commanded(double pitch) 
-    {
-        _pitch_commanded = pitch;
-    }
-
-    double get_elevator(double pitch, double pitch_rate, double dynamic_pressure) const;
 };
 
 class AltitudeRateGuidance : public virtual PitchGuidance
@@ -312,16 +390,6 @@ class AltitudeRateGuidance : public virtual PitchGuidance
 
     const double _max_pitch_offset;
 
-    double _pitch = 0.0;
-
-    double _pitch_rate = 0.0;
-
-    double _old_time = 0.0;
-
-    double _old_altitude = 0.0;
-
-    double _old_airspeed = 0.0;
-
     bool _cruising = false;
 
 public:
@@ -338,24 +406,12 @@ public:
     AltitudeRateGuidance(const AltitudeRateGuidance& other) = default;
     AltitudeRateGuidance(AltitudeRateGuidance&& other) noexcept = default;
 
-    double get_pitch() const
-    {
-        return _pitch;
-    }
-
-    double get_pitch_rate() const
-    {
-        return _pitch_rate;
-    }
-
-    void init(const VehicleBase& vehicle, double time);
-
     void reset() noexcept 
     {
         _cruising = false;
     }
 
-    void update_climb_navigation(const VehicleBase& vehicle, double time) override;
+    void update(const SimpleVehicleNavigation& navigation, const VehicleBase& vehicle, double time) override;
 
 };
 
@@ -365,19 +421,27 @@ class RamjetVehicle final : public virtual VehicleBase
 
     AerodynamicBasicCoefficients _aerodynamics;
 
+    SimpleVehicleNavigation _navigation;
+
     AltitudeRateGuidance _guidance;
 
     PitchControl _control;
+
+    ElevatorMotor _elevator;
 
 public:
 
     static constexpr unsigned NUM_DATA = 2u;
 
-    RamjetVehicle(const InertialProperties& I, const Atmosphere& atmosphere, 
+    RamjetVehicle(InertialProperties I, const Atmosphere& atmosphere, 
         std::unique_ptr<Ramjet> ramjet, 
         const AerodynamicBasicCoefficients::Coef& coef,
+        const SimpleVehicleNavigation& navigation,
         const AltitudeRateGuidance& guidance,
-        const PitchControl& control);
+        const PitchControl& control,
+        const ElevatorMotor& elevator) : VehicleBase(I, atmosphere), _ramjet(std::move(ramjet)), 
+            _aerodynamics(coef),  _navigation(navigation), _guidance(guidance), 
+            _control(control), _elevator(elevator) {};
 
     const AerodynamicBasicCoefficients& get_aerodynamics() const
     {
@@ -401,7 +465,7 @@ public:
 
     void initNav(double time = 0.0)
     {
-        _guidance.init(*this, time);
+        _navigation.init(*this, time);
     }
 
     void update_control(double time) override;

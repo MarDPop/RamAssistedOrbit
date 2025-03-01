@@ -1,6 +1,6 @@
 {
     "OUTPUT_DIRECTORY" : "output/",
-    "INERTIAL_PROPERTIES" : {
+    "START_INERTIAL_PROPERTIES" : {
         "MASS_0" : 1000,
         "IXX_0" : 500,
         "IYY_0" : 8500,
@@ -18,25 +18,29 @@
         "EXIT_SPEED" : 600,
         "EXIT_ANGLE" : 12
     },
-    "RAMJET" : {
-        "THRUST2WEIGHT" : 0.7,
-        "FUEL_FLOW_MARGIN" : 0.25,
-        "CRUISE" : {
-            "ALTITUDE" : 20000,
-            "MACH" : 3.25
+    "STAGE1" : {
+        "PROPULSION" : {
+            "TYPE" : "RAMJET",
+            "THRUST2WEIGHT" : 0.7,
+            "THRUST_MARGIN" : 0.1,
+            "FUEL_FLOW_MARGIN" : 0.25,
+            "DESIGN_ALTITUDE" : 20000,
+            "DESIGN_MACH" : 3.25
         },
-        "CONTROL" : {
+        "GNC" : {
             "K1" : 0.1,
-            "K2" : 1.5,
-            "K3" : 0.00001,
+            "K2" : 0.001,
+            "K3" : 0.0009,
             "MAX_ALPHA" : 0.02,
             "MIN_ALPHA" : 0.0,
-            "ALPHA_K" : 0.5,
+            "ALPHA_K" : 0.1,
             "MAX_PITCH_OFFSET" : 0.1,
             "CRUISE_CLIMB_RATE" : 1.0,
             "MIN_CLIMB_RATE_CLIMBING" : 15.0,
             "PITCH_K" : 2e5,
-            "PITCH_D" : 0.9
+            "PITCH_D" : 0.9,
+            "ALTITUDE_GOAL" : 20000,
+            "MACH_GOAL" : 3.25
         },
         "AERODYNAMICS" : {
             "CD0" : 0.03,

@@ -35,6 +35,8 @@ namespace functions
     void quaternion_orientation_rate(const Eigen::Quaterniond& q, 
         const Eigen::Vector3d& angular_velocity_body, Eigen::Quaterniond& q_dot);
 
+    std::vector<double> diff(const std::vector<double>& values);
+
     /**
      * 
      * Note: yaw followed by pitch intrinsic, rotm stored in col major

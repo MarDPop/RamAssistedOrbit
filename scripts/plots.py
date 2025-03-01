@@ -117,8 +117,8 @@ with open("../output/result.dat","r") as resultfile:
                 continue
             else:
                 altitude_rate[i] = (altitude[i] - altitude[i - 1])/dt
-
-                isp[i] = thrust[i]*dt/((mass[i - 1] - mass[i] + 1e-9)*9.806)
+                if thrust[i] > 0.0:
+                    isp[i] = thrust[i]*dt/((mass[i - 1] - mass[i] + 1e-9)*9.806)
     
 pitch[0] = 0
         

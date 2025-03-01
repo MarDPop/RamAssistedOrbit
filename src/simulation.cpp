@@ -74,80 +74,88 @@ std::array<double,6> get_final_orbital_elements(const State_6DOF& state)
 SimulationResult run(json& config)
 {
     std::cout << "**** Running Track States **** \n";
-    SimulationResult result;
+    SimulationResult result; // output
 
+
+    const double startMass = config["START_INERTIAL_PROPERTIES"]["MASS_0"].template get<double>();
+    constexpr double min_empty = 0.01;
+    InertialProperties I(startMass*min_empty, 
+        {config["START_INERTIAL_PROPERTIES"]["IXX_0"].template get<double>()*min_empty,
+        config["START_INERTIAL_PROPERTIES"]["IYY_0"].template get<double>()*min_empty,
+        config["START_INERTIAL_PROPERTIES"]["IZZ_0"].template get<double>()*min_empty}, Eigen::Vector3d(0,0,0),
+        startMass, 
+        {config["START_INERTIAL_PROPERTIES"]["IXX_0"].template get<double>(),
+        config["START_INERTIAL_PROPERTIES"]["IYY_0"].template get<double>(),
+        config["START_INERTIAL_PROPERTIES"]["IZZ_0"].template get<double>()}, Eigen::Vector3d(0,0,0));
+
+    // Track Stage
+    const auto& trackConfig = config["TRACK"];
     constexpr double dt = 0.001;
     constexpr double dt_record = 0.1;
 
-    auto track = track_dynamics::generate_track(config["TRACK"]["MAX_G"].template get<double>(), 
-        config["TRACK"]["FRICTION"].template get<double>(), 
-        config["TRACK"]["LINEAR_FRICTION"].template get<double>(), 
-        config["TRACK"]["EXIT_SPEED"].template get<double>(), 
-        config["TRACK"]["EXIT_ANGLE"].template get<double>()*DEG2RAD, 
+    auto track = track_dynamics::generate_track(trackConfig["MAX_G"].template get<double>(), 
+        trackConfig["FRICTION"].template get<double>(), 
+        trackConfig["LINEAR_FRICTION"].template get<double>(), 
+        trackConfig["EXIT_SPEED"].template get<double>(), 
+        trackConfig["EXIT_ANGLE"].template get<double>()*DEG2RAD, 
         dt, dt_record);
 
     output::write_track_csv(config["OUTPUT_DIRECTORY"].template get<std::string>() + "track.dat", track);
 
-    auto track_end_state = track_dynamics::generate_exit_ecef_state(config["TRACK"]["LAUNCH_LONGITUDE"].template get<double>()*DEG2RAD, 
-        config["TRACK"]["LAUNCH_LATITUDE"].template get<double>()*DEG2RAD, 
-        config["TRACK"]["LAUNCH_ALTITUDE"].template get<double>(), 
-        config["TRACK"]["LAUNCH_HEADING"].template get<double>()*DEG2RAD, 
-        config["TRACK"]["EXIT_SPEED"], config["TRACK"]["EXIT_ANGLE"].template get<double>()*DEG2RAD);
+    auto track_end_state = track_dynamics::generate_exit_ecef_state(trackConfig["LAUNCH_LONGITUDE"].template get<double>()*DEG2RAD, 
+        trackConfig["LAUNCH_LATITUDE"].template get<double>()*DEG2RAD, 
+        trackConfig["LAUNCH_ALTITUDE"].template get<double>(), 
+        trackConfig["LAUNCH_HEADING"].template get<double>()*DEG2RAD, 
+        trackConfig["EXIT_SPEED"], trackConfig["EXIT_ANGLE"].template get<double>()*DEG2RAD);
 
     std::cout << "**** Track End State **** \n";
     std::cout << track_end_state.body.position << "\n";
     std::cout << track_end_state.body.velocity << "\n";
-    std::cout << "**** Setup Vehicle Simulation ****" << std::endl;
-
-    const double startMass = config["INERTIAL_PROPERTIES"]["MASS_0"].template get<double>();
-
+    
     result.ecef_states = track_dynamics::convert_track_states(track, startMass, 
-        config["TRACK"]["LAUNCH_LONGITUDE"].template get<double>()*DEG2RAD, 
-        config["TRACK"]["LAUNCH_LATITUDE"].template get<double>()*DEG2RAD, 
-        config["TRACK"]["LAUNCH_ALTITUDE"].template get<double>(), 
-        config["TRACK"]["LAUNCH_HEADING"].template get<double>()*DEG2RAD, 
-        config["TRACK"]["EXIT_SPEED"].template get<double>(), 
-        config["TRACK"]["EXIT_ANGLE"].template get<double>()*DEG2RAD);
+        trackConfig["LAUNCH_LONGITUDE"].template get<double>()*DEG2RAD, 
+        trackConfig["LAUNCH_LATITUDE"].template get<double>()*DEG2RAD, 
+        trackConfig["LAUNCH_ALTITUDE"].template get<double>(), 
+        trackConfig["LAUNCH_HEADING"].template get<double>()*DEG2RAD, 
+        trackConfig["EXIT_SPEED"].template get<double>(), 
+        trackConfig["EXIT_ANGLE"].template get<double>()*DEG2RAD);
 
     result.times = track.t;
     result.start_ramjet = track.t.back();
-
     for(unsigned i = 0; i < track.t.size(); i++) 
     {
         result.other_data.emplace_back(0);
     }
 
+    std::cout << "**** Setup Ramjet Simulation ****" << std::endl;
+
     // Ramjet Stage
+    const auto& ramjetConfig = config["STAGE1"];
+    const auto& ramjetAero = ramjetConfig["AERODYNAMICS"];
+    const auto& ramjetThruster = ramjetConfig["PROPULSION"];
+    const auto& ramjetGNC = ramjetConfig["GNC"];
+
     AtmosphereLinearTable atm = AtmosphereLinearTable::create(AtmosphereLinearTable::STD_ATMOSPHERES::US_1976, 100);
 
-    constexpr double min_empty = 0.01;
-    InertialProperties I(startMass*min_empty, 
-        {config["INERTIAL_PROPERTIES"]["IXX_0"].template get<double>()*min_empty,
-        config["INERTIAL_PROPERTIES"]["IYY_0"].template get<double>()*min_empty,
-        config["INERTIAL_PROPERTIES"]["IZZ_0"].template get<double>()*min_empty}, Eigen::Vector3d(0,0,0),
-        startMass, 
-        {config["INERTIAL_PROPERTIES"]["IXX_0"].template get<double>(),
-        config["INERTIAL_PROPERTIES"]["IYY_0"].template get<double>(),
-        config["INERTIAL_PROPERTIES"]["IZZ_0"].template get<double>()}, Eigen::Vector3d(0,0,0));
-
     AerodynamicBasicCoefficients::Coef coef;
-    coef.CD0 = config["RAMJET"]["AERODYNAMICS"]["CD0"].template get<double>();
-    coef.K = config["RAMJET"]["AERODYNAMICS"]["INDUCED_DRAG_K"].template get<double>();
-    coef.alpha0 = config["RAMJET"]["AERODYNAMICS"]["ALPHA0"].template get<double>();
-    coef.CL_alpha = config["RAMJET"]["AERODYNAMICS"]["CL_ALPHA"].template get<double>();
-    coef.CM_alpha = config["RAMJET"]["AERODYNAMICS"]["CM_ALPHA"].template get<double>();
-    coef.CN_beta = config["RAMJET"]["AERODYNAMICS"]["CN_BETA"].template get<double>();
-    coef.stall_angle = config["RAMJET"]["AERODYNAMICS"]["STALL_ANGLE"].template get<double>();
-    coef.dCD_dEl = config["RAMJET"]["AERODYNAMICS"]["DCD_DEL"].template get<double>();
-    coef.dCM_dEl = config["RAMJET"]["AERODYNAMICS"]["DCM_DEL"].template get<double>();
-    coef.max_elevator_deflection = config["RAMJET"]["AERODYNAMICS"]["MAX_EL_DEFLECTION"].template get<double>();
-    coef.A_ref = config["RAMJET"]["AERODYNAMICS"]["AREF"].template get<double>();
-    coef.L_ref = config["RAMJET"]["AERODYNAMICS"]["LREF"].template get<double>();
+    coef.CD0 = ramjetAero["CD0"].template get<double>();
+    coef.K = ramjetAero["INDUCED_DRAG_K"].template get<double>();
+    coef.alpha0 = ramjetAero["ALPHA0"].template get<double>();
+    coef.CL_alpha = ramjetAero["CL_ALPHA"].template get<double>();
+    coef.CM_alpha = ramjetAero["CM_ALPHA"].template get<double>();
+    coef.CN_beta = ramjetAero["CN_BETA"].template get<double>();
+    coef.stall_angle = ramjetAero["STALL_ANGLE"].template get<double>();
+    coef.dCD_dEl = ramjetAero["DCD_DEL"].template get<double>();
+    coef.dCM_dEl = ramjetAero["DCM_DEL"].template get<double>();
+    coef.max_elevator_deflection = ramjetAero["MAX_EL_DEFLECTION"].template get<double>();
+    coef.A_ref = ramjetAero["AREF"].template get<double>();
+    coef.L_ref = ramjetAero["LREF"].template get<double>();
 
+    // Automatically compute best area
     if(coef.A_ref <= 0.0)
     {
-        double mach = config["RAMJET"]["CRUISE"]["MACH"].template get<double>();
-        double altitude = config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>();
+        double mach = ramjetThruster["DESIGN_MACH"].template get<double>();
+        double altitude = ramjetThruster["DESIGN_ALTITUDE"].template get<double>();
         Air air;
         atm.set_air(altitude, air);
         double speed = mach/air.inv_sound_speed;
@@ -155,20 +163,19 @@ SimulationResult run(json& config)
         coef.A_ref = startMass*0.9*GForce::G/PitchGuidance::opt_wing_loading(coef.K, coef.CD0, q);
     }
 
-    double thrust2weight = config["RAMJET"]["THRUST2WEIGHT"].template get<double>();
-    double thrust = startMass*thrust2weight*GForce::G;
-    auto ramjet_tmp = RamjetFixedInletFixedOutlet::create(config["RAMJET"]["CRUISE"]["MACH"].template get<double>(),
-        config["RAMJET"]["CRUISE"]["ALTITUDE"].template get<double>(), 
-        thrust,
-        8.0);
+    
+    double lift2drag = 0.0;
 
-    auto ramjet = std::make_unique<RamjetFixedInletVariableOutlet>(ramjet_tmp.get_throat_area(), 
-        ramjet_tmp.get_exit_area()*0.32,
-        ramjet_tmp.get_exit_area()*0.64, 
-        ramjet_tmp.get_exit_area()*1.28,
-        ramjet_tmp.get_nozzle_efficiency(),
-        ramjet_tmp.get_dry_mass(),
-        ramjet_tmp.get_max_mass_rate());
+
+    auto ramjet = std::unique_ptr<Ramjet>(new RamjetReal( RamjetReal::create(
+        ramjetThruster["THRUST2WEIGHT"].template get<double>(),
+        ramjetThruster["DESIGN_ALTITUDE"].template get<double>(), 
+        ramjetThruster["DESIGN_MACH"].template get<double>(),
+        ramjetThruster["DESIGN_MACH"].template get<double>(),
+        lift2drag,
+        ramjetThruster["THRUST_MARGIN"].template get<double>(),
+        ramjetThruster["FUEL_FLOW_MARGIN"].template get<double>())
+    ));
 
     PitchControl control(config["RAMJET"]["CONTROL"]["PITCH_K"].template get<double>(),
         config["RAMJET"]["CONTROL"]["PITCH_D"].template get<double>());
@@ -187,7 +194,11 @@ SimulationResult run(json& config)
         config["RAMJET"]["CONTROL"]["MIN_CLIMB_RATE_CLIMBING"].template get<double>()
         );
 
-    RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, guidance, control);
+    ElevatorMotor elevator(2.0);
+
+    SimpleVehicleNavigation nav;
+
+    RamjetVehicle rVehicle(I, atm, std::move(ramjet), coef, nav, guidance, control, elevator);
 
     //ODE_HUEN_EULER<RamjetVehicle> ode(rVehicle);
     int odeType = config["ODE"]["TYPE"].template get<int>();
@@ -222,7 +233,7 @@ SimulationResult run(json& config)
     };
 
     std::array<double, 14> dummy;
-    rVehicle(track_end_state.x, 0, dummy);
+    rVehicle(options.initial_state, 0, dummy);
     rVehicle.initNav();
 
     std::cout << "**** Running Vehicle Simulation ****" << std::endl;
